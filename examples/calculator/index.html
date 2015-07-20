@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head lang="en">
+  <meta charset="UTF-8">
+  <title></title>
+  <style>
+    body {
+      /*background-color: hsla(14, 45%, 78%, 0.1);*/
+    }
+
+    form {
+      width: 15rem;
+      margin: auto;
+    }
+
+    fieldset {
+      position: relative;
+      background-color: hsla(14, 24%, 35%, 0.1);;
+      margin: 1rem 0;
+      box-shadow: 0 0 1.25rem hsl(0, 0%, 86%);
+      border: 1px solid hsl(0, 0%, 86%);
+      border-radius: .2rem;
+      padding-top: 5.5rem;
+      width: 13.5rem;
+    }
+
+    button, code {
+      color: white;
+      text-shadow: 0 0 .1rem black;
+    }
+
+    button {
+      display: inline-block;
+      width: 4rem;
+      height: 4rem;
+      margin: .25rem;
+      font-size: 3rem;
+      float: left;
+    }
+
+    button:nth-of-type(3n+1) {
+      clear: both;
+    }
+
+    button[value=""] {
+      width: 8.5rem;
+    }
+
+    code {
+      font-size: 3.5rem;
+      font-style: italic;
+      font-family: monospace;
+      background-color: rgba(68, 64, 221, 0.25);
+      border: 1px solid hsl(0, 0%, 86%);
+      padding: .25rem .5rem;
+      letter-spacing: 0.5rem;
+      display: inline-block;
+      min-width: 11.5rem;
+      height: 3.5rem;
+      line-height: 3.5rem;
+      position: absolute;
+      left: 1rem;
+      top: 1rem;
+    }
+  </style>
+</head>
+<body>
+<form name="calculator">
+  <fieldset name="first-operand">
+    <code>&nbsp;</code>
+    <button name="digit" value="1" type="button">1</button>
+    <button name="digit" value="2" type="button">2</button>
+    <button name="digit" value="3" type="button">3</button>
+    <button name="digit" value="4" type="button">4</button>
+    <button name="digit" value="5" type="button">5</button>
+    <button name="digit" value="6" type="button">6</button>
+    <button name="digit" value="7" type="button">7</button>
+    <button name="digit" value="8" type="button">8</button>
+    <button name="digit" value="9" type="button">9</button>
+    <button name="digit" value="0" type="button">0</button>
+    <button name="digit" value="" type="button">&leftarrow;</button>
+  </fieldset>
+  <fieldset name="operator">
+    <code>&nbsp;</code>
+    <button name="sign" value="+" type="button">&plus;</button>
+    <button name="sign" value="-" type="button">&minus;</button>
+    <button name="sign" value="*" type="button">&lowast;</button>
+    <button name="sign" value="/" type="button">&div;</button>
+  </fieldset>
+  <fieldset name="second-operand">
+    <code>&nbsp;</code>
+    <button name="digit" value="1" type="button">1</button>
+    <button name="digit" value="2" type="button">2</button>
+    <button name="digit" value="3" type="button">3</button>
+    <button name="digit" value="4" type="button">4</button>
+    <button name="digit" value="5" type="button">5</button>
+    <button name="digit" value="6" type="button">6</button>
+    <button name="digit" value="7" type="button">7</button>
+    <button name="digit" value="8" type="button">8</button>
+    <button name="digit" value="9" type="button">9</button>
+    <button name="digit" value="0" type="button">0</button>
+    <button name="digit" value="" type="button">&leftarrow;</button>
+  </fieldset>
+  <fieldset name="result">
+    <code>&nbsp;</code>
+  </fieldset>
+</form>
+<script src="bin.o.js"></script>
+</body>
+</html>
