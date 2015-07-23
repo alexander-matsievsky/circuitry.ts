@@ -1,165 +1,429 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var lib_1 = require("../../src/lib");
-var Operator;
-(function (Operator) {
-    Operator[Operator["PLUS"] = 0] = "PLUS";
-    Operator[Operator["MINUS"] = 1] = "MINUS";
-    Operator[Operator["TIMES"] = 2] = "TIMES";
-    Operator[Operator["DIVISION"] = 3] = "DIVISION";
-})(Operator || (Operator = {}));
-var cir = new lib_1.Circuit({
-    title: "Calculator",
-    descr: "Kinda analog calculator"
-}), decodeOperand = function (fieldset, initialValue) {
-    return lib_1.Bacon.fromEvent(fieldset, "click", function (_a) {
-        var target = _a.target;
-        return target;
-    })
-        .filter(function (button) { return button.name === "digit"; })
-        .scan(initialValue, function (line, _a) {
-        var value = _a.value;
-        return /^[0-9]$/.test(value) ? line + value : value === "" ? line.slice(0, line.length - 1) : line;
-    })
-        .map(function (line) { return parseInt(line, 10) || 0; })
-        .toEventStream();
-};
-var lhs = cir.Block({
-    title: "LHS operand generator",
-    descr: "Provides left-hand-side operand for calculation"
-}, {
-    Mem: function () { return ({
-        initialValue: "12345",
-        keyboard: document.querySelector("form[name=calculator] fieldset[name=first-operand]"),
-        display: document.querySelector("form[name=calculator] fieldset[name=first-operand] code")
-    }); },
-    In: {},
-    Out: {
-        value: cir.Out({ title: "LHS operand", descr: "LHS operand" })
-    }
-}, function (Mem, In, Out) {
-    Out.value.$ = decodeOperand(Mem.keyboard, Mem.initialValue);
-});
-lhs.Effect({
-    title: "LHS operand printer",
-    descr: "Prints left-hand-side operand to display"
-}, lhs.Out.value, function (Mem, value) {
-    Mem.display.innerHTML = "" + value;
-});
-var rhs = cir.Block({
-    title: "RHS operand generator",
-    descr: "Provides right-hand-side operand for calculation"
-}, {
-    Mem: function () { return ({
-        initialValue: "67890",
-        keyboard: document.querySelector("form[name=calculator] fieldset[name=second-operand]"),
-        display: document.querySelector("form[name=calculator] fieldset[name=second-operand] code")
-    }); },
-    In: {},
-    Out: {
-        value: cir.Out({ title: "RHS operand", descr: "RHS operand" })
-    }
-}, function (Mem, In, Out) {
-    Out.value.$ = decodeOperand(Mem.keyboard, Mem.initialValue);
-});
-rhs.Effect({
-    title: "RHS operand printer",
-    descr: "Prints right-hand-side operand to display"
-}, rhs.Out.value, function (Mem, n) {
-    Mem.display.innerHTML = "" + n;
-});
-var op = cir.Block({
-    title: "Operator generator",
-    descr: "Provides operator for calculation"
-}, {
-    Mem: function () { return ({
-        initialValue: "",
-        keyboard: document.querySelector("form[name=calculator] fieldset[name=operator]"),
-        display: document.querySelector("form[name=calculator] fieldset[name=operator] code")
-    }); },
-    In: {},
-    Out: {
-        value: cir.Out({ title: "Operator", descr: "" }),
-        symbol: cir.Out({ title: "Operator symbol", descr: "" })
-    }
-}, function (Mem, In, Out) {
-    var sign = lib_1.Bacon.fromEvent(Mem.keyboard, "click", function (_a) {
-        var target = _a.target;
-        return target;
-    })
-        .filter(function (_a) {
-        var name = _a.name;
-        return name === "sign";
-    })
-        .map(function (_a) {
-        var value = _a.value;
-        return value;
+// todo: Item
+// todo: Editing
+var lib_1 = require("../../../../src/lib");
+function uuid4() {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
     });
-    Out.symbol.$ = sign;
-    Out.value.$ = sign.map(function (sign) {
-        switch (sign) {
-            case "+":
-                return Operator.PLUS;
-            case "-":
-                return Operator.MINUS;
-            case "*":
-                return Operator.TIMES;
-            case "/":
-                return Operator.DIVISION;
+}
+var Tab;
+(function (Tab) {
+    Tab[Tab["ALL"] = 0] = "ALL";
+    Tab[Tab["ACTIVE"] = 1] = "ACTIVE";
+    Tab[Tab["COMPLETED"] = 2] = "COMPLETED";
+})(Tab || (Tab = {}));
+var Editing;
+(function (Editing) {
+    Editing[Editing["START"] = 0] = "START";
+    Editing[Editing["STOP"] = 1] = "STOP";
+})(Editing || (Editing = {}));
+var F;
+(function (F) {
+    function keypress(target, key) {
+        return lib_1.Bacon.fromEvent(target, "keypress")
+            .filter(function (event) {
+            // note: for FF/IE
+            if ("key" in event) {
+                return event.key === key;
+            }
+            else if ("keyIdentifier" in event) {
+                return event.keyIdentifier === key;
+            }
+            else {
+                throw new Error("UNREACHABLE!");
+            }
+        });
+    }
+    F.keypress = keypress;
+    function mouse(target, eventName, tagName, classes) {
+        return lib_1.Bacon.fromEvent(target, eventName)
+            .filter(function (event) {
+            var _a = event.target, tagName_ = _a.tagName, classList = _a.classList;
+            return tagName_ === tagName && classes.every(classList.contains.bind(classList));
+        })
+            .map(function (event) { return (event.target); });
+    }
+    F.mouse = mouse;
+})(F || (F = {}));
+window.addEventListener("load", function () {
+    var todo = new lib_1.Circuit({
+        title: "Todo application",
+        descr: "Simple locally stored todo list."
+    });
+    var resource = todo.Block(lib_1.DESCRIBE_LATER, {
+        Mem: lib_1.EMPTY_MEM,
+        In: {
+            restore: todo.In(lib_1.DESCRIBE_LATER),
+            POST: todo.In(lib_1.DESCRIBE_LATER),
+            PUT: todo.In(lib_1.DESCRIBE_LATER),
+            DELETE: todo.In(lib_1.DESCRIBE_LATER)
+        },
+        Out: {
+            GET: todo.Out(lib_1.DESCRIBE_LATER),
+            POST: todo.Out(lib_1.DESCRIBE_LATER),
+            PUT: todo.Out(lib_1.DESCRIBE_LATER),
+            DELETE: todo.Out(lib_1.DESCRIBE_LATER)
         }
+    }, function (Mem, In, Out) {
+        var POST = lib_1.Bacon.mergeAll(In.POST.$.map(function (POST) { return ({
+            id: uuid4(),
+            title: POST.title,
+            completed: false
+        }); }), In.restore.$.flatMap(lib_1.Bacon.fromArray)), update = lib_1.Bacon.update([[], null, null], [POST], function (_a, POST) {
+            var todos = _a[0];
+            return [todos.concat(POST), null, POST];
+        }, [In.PUT.$], function (_a, PUT) {
+            var todos = _a[0];
+            var matchingTodos = todos.filter(function (todo) { return todo.id === PUT.id; });
+            switch (matchingTodos.length) {
+                case 0:
+                    return [todos, new Error("PUT[" + JSON.stringify(PUT) + "] is absent from the todo-list"), null];
+                    break;
+                case 1:
+                    var updatedTodos = todos.map(function (todo) { return todo.id !== PUT.id ? todo : {
+                        id: PUT.id,
+                        title: "title" in PUT ? PUT.title : todo.title,
+                        completed: "completed" in PUT ? PUT.completed : todo.completed
+                    }; });
+                    return [updatedTodos, null, updatedTodos.filter(function (todo) { return todo.id === PUT.id; })[0]];
+                    break;
+                default:
+                    return [todos, new Error("PUT[" + JSON.stringify(PUT) + "] is presented in the todo-list multiple times"), null];
+                    break;
+            }
+        }, [In.DELETE.$], function (_a, DELETE) {
+            var todos = _a[0];
+            var matchingTodos = todos.filter(function (todo) { return todo.id === DELETE.id; });
+            switch (matchingTodos.length) {
+                case 0:
+                    return [todos, new Error("DELETE[" + JSON.stringify(DELETE) + "] is absent from the todo-list"), null];
+                    break;
+                case 1:
+                    return [todos.filter(function (todo) { return todo.id !== DELETE.id; }), null, matchingTodos[0]];
+                    break;
+                default:
+                    return [todos, new Error("DELETE[" + JSON.stringify(DELETE) + "] is presented in the todo-list multiple times"), null];
+                    break;
+            }
+        })
+            .flatMap(function (_a) {
+            var todos = _a[0], error = _a[1], todo = _a[2];
+            return error !== null ? new lib_1.Bacon.Error(error) : [todos, todo];
+        });
+        Out.GET.$ = update.map(function (_a) {
+            var todos = _a[0], _ = _a[1];
+            return todos;
+        });
+        Out.POST.$ = lib_1.Bacon.when([update, POST], function (_a) {
+            var _ = _a[0], POST = _a[1];
+            return POST;
+        }, [update, In.PUT.$], function (_) { return null; }, [update, In.DELETE.$], function (_) { return null; }).filter(function (_) { return _ !== null; });
+        Out.PUT.$ = lib_1.Bacon.when([update, POST], function (_) { return null; }, [update, In.PUT.$], function (_a) {
+            var _ = _a[0], PUT = _a[1];
+            return PUT;
+        }, [update, In.DELETE.$], function (_) { return null; }).filter(function (_) { return _ !== null; });
+        Out.DELETE.$ = lib_1.Bacon.when([update, POST], function (_) { return null; }, [update, In.PUT.$], function (_) { return null; }, [update, In.DELETE.$], function (_a) {
+            var _ = _a[0], DELETE = _a[1];
+            return DELETE;
+        }).filter(function (_) { return _ !== null; });
     });
-});
-op.Effect({
-    title: "Operator printer",
-    descr: ""
-}, op.Out.symbol, function (Mem, symbol) {
-    Mem.display.innerHTML = symbol;
-});
-var calculator = cir.Block({
-    title: "Calculator",
-    descr: "Simple binary operation calculator"
-}, {
-    Mem: function () { return ({
-        display: document.querySelector("form[name=calculator] fieldset[name=result] code")
-    }); },
-    In: {
-        lhs: cir.In({ title: "A", descr: "First operand" }),
-        rhs: cir.In({ title: "B", descr: "Second operand" }),
-        op: cir.In({ title: "O", descr: "Operand" })
-    },
-    Out: {
-        c: cir.Out({ title: "C", descr: "Result" })
-    }
-}, function (Mem, In, Out) {
-    Out.c.$ = lib_1.Bacon.combineTemplate({
-        lhs: In.lhs.$, rhs: In.rhs.$, op: In.op.$
-    })
-        .toEventStream()
-        .map(function (_a) {
-        var lhs = _a.lhs, rhs = _a.rhs, op = _a.op;
-        switch (op) {
-            case Operator.PLUS:
-                return lhs + rhs;
-            case Operator.MINUS:
-                return lhs - rhs;
-            case Operator.TIMES:
-                return lhs * rhs;
-            case Operator.DIVISION:
-                return lhs / rhs;
+    var persistence = todo.Block(lib_1.DESCRIBE_LATER, {
+        Mem: function () { return ({
+            label: "todos-circuitry.ts"
+        }); },
+        In: {
+            store: todo.In(lib_1.DESCRIBE_LATER)
+        },
+        Out: {
+            restore: todo.Out(lib_1.DESCRIBE_LATER)
         }
+    }, function (Mem, In, Out) {
+        Out.restore.$ = lib_1.Bacon
+            .constant(localStorage.getItem(Mem.label) || "[]")
+            .map(JSON.parse)
+            .toEventStream();
+    })
+        .Effect({
+        title: "Persistence",
+        descr: "Your app should dynamically persist the todos to localStorage. If the framework has capabilities for persisting data (e.g. Backbone.sync), use that, otherwise vanilla localStorage. If possible, use the keys id, title, completed for each item. Make sure to use this format for the localStorage name: todos-[framework]. Editing mode should not be persisted."
+    }, function (In, Out) { return In.store; }, function (Mem, store) {
+        localStorage.setItem(Mem.label, JSON.stringify(store));
     });
+    var widget = todo.Block(lib_1.DESCRIBE_LATER, {
+        Mem: function () {
+            var header = document.querySelector("header.header"), main = document.querySelector("section.main"), footer = document.querySelector("footer.footer"), filters = footer.querySelector("ul.filters");
+            return {
+                DOM: {
+                    header: header,
+                    newTodo: header.querySelector("input.new-todo"),
+                    main: main,
+                    toggleAll: main.querySelector("input.toggle-all"),
+                    todoList: main.querySelector("ul.todo-list"),
+                    footer: footer,
+                    todoCount: footer.querySelector("span.todo-count"),
+                    clearCompleted: footer.querySelector("button.clear-completed"),
+                    filters: {
+                        _: filters,
+                        all: filters.querySelector("[href=\"#/\"]"),
+                        active: filters.querySelector("[href=\"#/active\"]"),
+                        completed: filters.querySelector("[href=\"#/completed\"]"),
+                    }
+                }
+            };
+        },
+        In: {
+            GET: todo.In(lib_1.DESCRIBE_LATER),
+            POST: todo.In(lib_1.DESCRIBE_LATER),
+            PUT: todo.In(lib_1.DESCRIBE_LATER),
+            DELETE: todo.In(lib_1.DESCRIBE_LATER)
+        },
+        Out: {
+            POST: todo.Out(lib_1.DESCRIBE_LATER),
+            editing: todo.Out(lib_1.DESCRIBE_LATER),
+            PUT: todo.Out(lib_1.DESCRIBE_LATER),
+            DELETE: todo.Out(lib_1.DESCRIBE_LATER),
+            tab: todo.Out(lib_1.DESCRIBE_LATER),
+            filtered: todo.Out(lib_1.DESCRIBE_LATER)
+        }
+    }, function (Mem, In, Out) {
+        Out.POST.$ = F.keypress(Mem.DOM.newTodo, "Enter")
+            .map(function (event) { return event.target.value; })
+            .filter(function (title) { return title.length > 0; })
+            .map(function (title) { return ({ title: title }); });
+        {
+            var editingStart = F.mouse(Mem.DOM.todoList, "dlclick", "DIV", ["view"])
+                .map(function (_a) {
+                var id = _a.parentElement.dataset["id"];
+                return ({
+                    id: id,
+                    phaze: Editing.START
+                });
+            }), editingStop = editingStart.toProperty()
+                .sampledBy(F.keypress(window, "ESC"))
+                .map(function (_a) {
+                var id = _a.id;
+                return ({ id: id, phaze: Editing.STOP });
+            }), toggle = F.mouse(Mem.DOM.todoList, "click", "INPUT", ["toggle"])
+                .map(function (_a) {
+                var checked = _a.checked, id = _a.parentElement.parentElement.dataset["id"];
+                return { id: id, completed: checked };
+            }), toggleAll = In.GET.$.toProperty()
+                .sampledBy(F.mouse(Mem.DOM.toggleAll, "click", "INPUT", ["toggle-all"])
+                .map(function (_a) {
+                var checked = _a.checked;
+                return checked;
+            }), function (todos, completed) { return todos.map(function (todo) { return ({
+                id: todo.id, completed: completed
+            }); }); })
+                .flatMap(lib_1.Bacon.fromArray);
+            Out.editing.$ = lib_1.Bacon.mergeAll([editingStart, editingStop]);
+            Out.PUT.$ = lib_1.Bacon.mergeAll([toggle, toggleAll]);
+        }
+        {
+            var destroy = F.mouse(Mem.DOM.todoList, "click", "BUTTON", ["destroy"])
+                .map(function (_a) {
+                var dataset = _a.parentElement.parentElement.dataset;
+                return ({ id: dataset["id"] });
+            }), clearCompleted = In.GET.$.toProperty()
+                .sampledBy(lib_1.Bacon.fromEvent(Mem.DOM.clearCompleted, "click"))
+                .map(function (todos) { return todos.reduce(function (ids, todo) {
+                return ids.concat(todo.completed ? [{ id: todo.id }] : []);
+            }, []); })
+                .filter(function (ids) { return ids.length > 0; })
+                .flatMap(lib_1.Bacon.fromArray);
+            Out.DELETE.$ = lib_1.Bacon.mergeAll([destroy, clearCompleted]);
+        }
+        {
+            var tab = lib_1.Bacon.mergeAll([
+                // note: `.delay(0)` here is to emulate the `start-of-life` moment by pushing onto event loop.
+                lib_1.Bacon.once(true).delay(0),
+                lib_1.Bacon.fromEvent(window, "popstate", function (_) { return true; })
+            ]).map(function (_) {
+                var match = document.location.hash.match(/\w+/g);
+                if (match === null) {
+                    return Tab.ALL;
+                }
+                switch (document.location.hash.match(/\w+/g)[0]) {
+                    case "active":
+                        return Tab.ACTIVE;
+                    case "completed":
+                        return Tab.COMPLETED;
+                    default:
+                        return Tab.ALL;
+                }
+            });
+            Out.tab.$ = tab;
+            Out.filtered.$ = In.GET.$.toProperty().sampledBy(
+            // note: need to `.throttle(0)` here to push the `filtered` onto event loop after rendering the item got from `In.GET.$`.
+            lib_1.Bacon.mergeAll([tab, tab.toProperty().sampledBy(In.GET.$.throttle(0))]), function (todos, tab) {
+                var _a = todos.reduce(function (_a, _b) {
+                    var active = _a.active, completed = _a.completed;
+                    var id = _b.id, todoCompleted = _b.completed;
+                    return todoCompleted ? {
+                        active: active,
+                        completed: completed.concat(id)
+                    } : {
+                        active: active.concat(id),
+                        completed: completed
+                    };
+                }, { active: [], completed: [] }), active = _a.active, completed = _a.completed;
+                switch (tab) {
+                    case Tab.ALL:
+                        return {
+                            show: active.concat(completed),
+                            hide: []
+                        };
+                    case Tab.ACTIVE:
+                        return {
+                            show: active,
+                            hide: completed
+                        };
+                    case Tab.COMPLETED:
+                        return {
+                            show: completed,
+                            hide: active
+                        };
+                }
+            });
+        }
+    })
+        .Effect({
+        title: "Functionality: No todos",
+        descr: "When there are no todos, #main and #footer should be hidden."
+    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
+        if (todos.length === 0) {
+            Mem.DOM.main.style.display = "none";
+            Mem.DOM.footer.style.display = "none";
+        }
+        else {
+            Mem.DOM.main.style.display = "inherit";
+            Mem.DOM.footer.style.display = "inherit";
+        }
+    })
+        .Effect({
+        title: "Functionality: Mark all as complete",
+        descr: "This checkbox toggles all the todos to the same state as itself. Make sure to clear the checked state after the the \"Clear completed\" button is clicked. The \"Mark all as complete\" checkbox should also be updated when single todo items are checked/unchecked. Eg. When all the todos are checked it should also get checked."
+    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
+        var toggleAll = Mem.DOM.toggleAll;
+        toggleAll.checked = todos.every(function (_a) {
+            var completed = _a.completed;
+            return completed;
+        });
+        if (toggleAll.checked) {
+            toggleAll.setAttribute("checked", "checked");
+        }
+        else {
+            toggleAll.removeAttribute("checked");
+        }
+    })
+        .Effect({
+        title: "Functionality: Clear completed button",
+        descr: "Removes completed todos when clicked. Should be hidden when there are no completed todos."
+    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
+        Mem.DOM.clearCompleted.style.display = todos.every(function (_a) {
+            var completed = _a.completed;
+            return !completed;
+        }) ? "none" : "inherit";
+    })
+        .Effect({
+        title: "Functionality: Counter",
+        descr: "Displays the number of active todos in a pluralized form. Make sure the number is wrapped by a <strong> tag. Also make sure to pluralize the item word correctly: 0 items, 1 item, 2 items. Example: 2 items left"
+    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
+        var active = todos.filter(function (_a) {
+            var completed = _a.completed;
+            return !completed;
+        }), s = active.length === 1 ? "" : "s";
+        Mem.DOM.todoCount.innerHTML = "<strong>" + active.length + "</strong> item" + s + " left";
+    })
+        .Effect({
+        title: "Functionality: New todo",
+        descr: "Make sure to .trim() the input and then check that it's not empty before creating a new todo."
+    }, function (In, Out) { return Out.POST; }, function (Mem, _) {
+        var newTodo = Mem.DOM.newTodo;
+        newTodo.value = "";
+        newTodo.setAttribute("value", "");
+    })
+        .Effect(lib_1.DESCRIBE_LATER, function (In, Out) { return In.POST; }, function (Mem, todo) {
+        var completed = todo.completed ? "class=\"completed\"" : "", checked = todo.completed ? "checked=\"checked\"" : "";
+        Mem.DOM.todoList.innerHTML += "\n<li data-id=\"" + todo.id + "\" " + completed + ">\n\t<div class=\"view\">\n\t\t<input class=\"toggle\" type=\"checkbox\" " + checked + ">\n\t\t<label>" + todo.title + "</label>\n\t\t<button class=\"destroy\"></button>\n\t</div>\n\t<input class=\"edit\" value=\"" + todo.title + "\">\n</li>";
+    })
+        .Effect(lib_1.DESCRIBE_LATER, function (In, Out) { return In.PUT; }, function (Mem, todo) {
+        var li = Mem.DOM.todoList.querySelector("[data-id=\"" + todo.id + "\"]"), toggle = li.querySelector(".toggle"), edit = li.querySelector(".edit");
+        toggle.checked = todo.completed;
+        if (todo.completed) {
+            toggle.setAttribute("checked", "checked");
+        }
+        else {
+            toggle.removeAttribute("checked");
+        }
+        li.querySelector("label").textContent = todo.title;
+        edit.value = todo.title;
+        edit.setAttribute("value", todo.title);
+        if (todo.completed) {
+            li.classList.add("completed");
+        }
+        else {
+            li.classList.remove("completed");
+        }
+    })
+        .Effect(lib_1.DESCRIBE_LATER, function (In, Out) { return In.DELETE; }, function (Mem, todo) {
+        var el = Mem.DOM.todoList.querySelector("[data-id=\"" + todo.id + "\"]");
+        el.parentElement.removeChild(el);
+    })
+        .Effect({
+        title: "Functionality: Routing",
+        descr: "Routing is required for all frameworks. The following routes should be implemented: #/ (all - default), #/active and #/completed (#!/ is also allowed). When the route changes the todo list should be filtered on a model level and the selected class on the filter links should be toggled. Make sure the active filter is persisted on reload."
+    }, function (In, Out) { return Out.tab; }, function (Mem, tab) {
+        var _a = Mem.DOM.filters, all = _a.all.classList, active = _a.active.classList, completed = _a.completed.classList;
+        switch (tab) {
+            case Tab.ALL:
+                all.add("selected");
+                active.remove("selected");
+                completed.remove("selected");
+                break;
+            case Tab.ACTIVE:
+                all.remove("selected");
+                active.add("selected");
+                completed.remove("selected");
+                break;
+            case Tab.COMPLETED:
+                all.remove("selected");
+                active.remove("selected");
+                completed.add("selected");
+        }
+    })
+        .Effect({
+        title: "Functionality: Routing",
+        descr: "Routing is required for all frameworks. The following routes should be implemented: #/ (all - default), #/active and #/completed (#!/ is also allowed). When the route changes the todo list should be filtered on a model level and the selected class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is Active and the item is checked, it should be hidden."
+    }, function (In, Out) { return Out.filtered; }, function (Mem, _a) {
+        var show = _a.show, hide = _a.hide;
+        Array.prototype.slice.call(Mem.DOM.todoList.querySelectorAll("[data-id]")).forEach(function (el) {
+            var id = el.dataset["id"];
+            switch (true) {
+                case show.indexOf(id) > -1:
+                    el.style.display = "inherit";
+                    break;
+                case hide.indexOf(id) > -1:
+                    el.style.display = "none";
+                    break;
+            }
+        });
+    });
+    todo.Wire(resource.Out.GET, persistence.In.store);
+    todo.Wire(persistence.Out.restore, resource.In.restore);
+    todo.Wire(widget.Out.POST, resource.In.POST);
+    todo.Wire(widget.Out.PUT, resource.In.PUT);
+    todo.Wire(widget.Out.DELETE, resource.In.DELETE);
+    todo.Wire(resource.Out.GET, widget.In.GET);
+    todo.Wire(resource.Out.POST, widget.In.POST);
+    todo.Wire(resource.Out.PUT, widget.In.PUT);
+    todo.Wire(resource.Out.DELETE, widget.In.DELETE);
+    todo.setup();
 });
-calculator.Effect({
-    title: "Result printer",
-    descr: ""
-}, calculator.Out.c, function (Mem, c) {
-    Mem.display.innerHTML = "" + c;
-});
-cir.Wire(lhs.Out.value, calculator.In.lhs);
-cir.Wire(rhs.Out.value, calculator.In.rhs);
-cir.Wire(op.Out.value, calculator.In.op);
-cir.setup();
 
-},{"../../src/lib":3}],2:[function(require,module,exports){
+},{"../../../../src/lib":3}],2:[function(require,module,exports){
 (function (global){
 (function() {
   var Bacon, BufferingSource, Bus, CompositeUnsubscribe, ConsumingSource, Desc, Dispatcher, End, Error, Event, EventStream, Exception, Initial, Next, None, Observable, Property, PropertyDispatcher, Some, Source, UpdateBarrier, _, addPropertyInitValueToStream, assert, assertArray, assertEventStream, assertFunction, assertNoArguments, assertObservable, assertObservableIsProperty, assertString, cloneArray, constantToFunction, containsDuplicateDeps, convertArgsToFunction, describe, endEvent, eventIdCounter, eventMethods, findDeps, findHandlerMethods, flatMap_, former, idCounter, initialEvent, isArray, isFieldKey, isObservable, latter, liftCallback, makeFunction, makeFunctionArgs, makeFunction_, makeObservable, makeSpawner, nextEvent, nop, partiallyApplied, recursionDepth, ref, registerObs, spys, toCombinator, toEvent, toFieldExtractor, toFieldKey, toOption, toSimpleExtractor, valueAndEnd, withDesc, withMethodCallSupport,
@@ -3597,14 +3861,16 @@ if ((typeof define !== "undefined" && define !== null) && (define.amd != null)) 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],3:[function(require,module,exports){
 /// <reference path="./DefinitelyTyped/baconjs/baconjs.d.ts"/>
-// TODO: implement blueprint construction.
+// todo: implement viz.
+// todo: implement diagnosis (`console.log` + `WebSocket` viz binding).
 /*
- * FIXME: `InPort`s (consumers) don't get the first `OutPort`s (producers) values.
+ * fixme: `InPort`s (consumers) don't get the first `OutPort`s (producers) values.
  * Now it is patched by
  *   1/ making `bus` eager in `InPort.constructor()`;
  *   2/ delaying the wired `OutPort` in `Circuit.setup()` [ head.wire(tail.wire.delay(0)); ].
  * */
-exports.Bacon = require("baconjs");
+var Bacon = require("baconjs");
+exports.Bacon = Bacon;
 function uuid4() {
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
         var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
@@ -3654,7 +3920,7 @@ exports.Descriptor = Descriptor;
 var InPort = (function () {
     function InPort(descriptor) {
         this.descriptor = descriptor;
-        this.bus = new exports.Bacon.Bus();
+        this.bus = new Bacon.Bus();
         this.bus.onValue(function () { return null; });
     }
     Object.defineProperty(InPort.prototype, "$", {
@@ -3673,7 +3939,7 @@ exports.InPort = InPort;
 var OutPort = (function () {
     function OutPort(descriptor) {
         this.descriptor = descriptor;
-        this.bus = new exports.Bacon.Bus();
+        this.bus = new Bacon.Bus();
     }
     Object.defineProperty(OutPort.prototype, "$", {
         set: function (s) {
@@ -3702,23 +3968,23 @@ var Wire = (function () {
 })();
 exports.Wire = Wire;
 var Block = (function () {
-    function Block(descriptor, memory, In, Out, process) {
+    function Block(descriptor, Mem, In, Out, process) {
         this.descriptor = descriptor;
-        this.memory = memory;
+        this.Mem = Mem;
         this.In_ = In;
         this.Out_ = Out;
         this.process = process;
         this.effects = [];
     }
     Block.prototype.setup = function () {
-        var memory = this.memory();
+        var Mem = this.Mem();
         this.effects.forEach(function (_a) {
-            var sensitivity = _a.sensitivity, effect = _a.effect;
-            sensitivity.wire.onValue(function (value) {
-                effect(memory, value);
+            var port = _a.port, effect = _a.effect;
+            port.bus.onValue(function (value) {
+                effect(Mem, value);
             });
         });
-        this.process(memory, this.In, this.Out);
+        this.process(Mem, this.In, this.Out);
     };
     Object.defineProperty(Block.prototype, "In", {
         get: function () {
@@ -3736,15 +4002,25 @@ var Block = (function () {
     });
     Block.prototype.Effect = function (descr, sensitivity, effect) {
         var _this = this;
-        var outPorts = Object.keys(this.Out_).map(function (name) { return _this.Out_[name]; });
-        if (outPorts.indexOf(sensitivity) === -1) {
-            throw new Error(ERROR.MUST_BELONG_TO_BOX(this.descriptor, [sensitivity.descriptor]));
+        var port = sensitivity(this.In_, this.Out_);
+        if (port instanceof InPort) {
+            var inPorts = Object.keys(this.In_).map(function (name) { return _this.In_[name]; });
+            if (inPorts.indexOf(port) === -1) {
+                throw new Error(ERROR.MUST_BELONG_TO_BOX(this.descriptor, [port.descriptor]));
+            }
+        }
+        else {
+            var outPorts = Object.keys(this.Out_).map(function (name) { return _this.Out_[name]; });
+            if (outPorts.indexOf(port) === -1) {
+                throw new Error(ERROR.MUST_BELONG_TO_BOX(this.descriptor, [port.descriptor]));
+            }
         }
         this.effects.push({
             descriptor: new Descriptor(descr.title, descr.descr),
-            sensitivity: sensitivity,
+            port: port,
             effect: effect
         });
+        return this;
     };
     return Block;
 })();

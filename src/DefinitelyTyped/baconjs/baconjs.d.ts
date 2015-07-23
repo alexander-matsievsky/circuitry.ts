@@ -6,7 +6,7 @@
 /// <reference path="../jquery/jquery.d.ts" />
 /// <reference path="../node/node-0.10.d.ts" />
 /// <reference path="../es6-promise/es6-promise.d.ts" />
-
+// fixme: merge changes to `DefinitelyTyped`!
 interface JQuery {
   /**
    * @method
@@ -787,9 +787,9 @@ declare module Bacon {
      * @method
      * @description Maps [EventStream]{@link Bacon.EventStream} events to the current value of the given [Property]{@link Bacon.Property} `property`. This is equivalent to [Property.sampledBy]{@link Bacon.Property#sampledBy}.
      * @param {Property<E, B>} property
-     * @returns {EventStream<E, A>}
+     * @returns {EventStream<E, B>}
      */
-    map<B>(property:Property<E, B>):EventStream<E, A>;
+    map<B>(property:Property<E, B>):EventStream<E, B>;
 
     /**
      * @callback EventStream#mapError~f
@@ -1972,6 +1972,7 @@ declare module Bacon {
      * @param {Error<E>} error
      * @returns {void}
      */
+    // fixme: `Error<E>` must be `E`!
     error(error:Error<E>):void;
 
     /**
@@ -2472,16 +2473,17 @@ declare module Bacon {
 
   /**
    * @callback Bacon.update1~f1
+   * @param {B} initial
    * @param {...A1} args
    * @returns {B}
    */
   /**
    * @method Bacon.update1
-   * @description Creates an [Property]{@link Bacon.EventStream} from an `initial` value and a join-pattern system.
+   * @description Creates an [Property]{@link Bacon.Property} from an `initial` value and a join-pattern system.
    * @param {B} initial
    * @param {Observable<E, A1>[]} pattern1
    * @param {Bacon.update1~f1} f1
-   * @returns {EventStream<E, B>}
+   * @returns {Property<E, B>}
    * @example
    * {
    *   // The inputs to `Bacon.update` are defined like this:
@@ -2508,27 +2510,29 @@ declare module Bacon {
    *   // In the example, the `score` property is updated when either `hitUfo` or `hitMotherShip` occur. The `scoreMultiplier` Property is sampled to take multiplier into account when `hitUfo` occurs.
    * }
    */
-  function update<E, A1, B, C>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => C):Property<E, C>;
+  function update<E, A1, B>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => B):Property<E, B>;
 
   /**
    * @callback Bacon.update2~f1
+   * @param {B} initial
    * @param {...A1} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update2~f2
+   * @param {B} initial
    * @param {...A2} args
    * @returns {B}
    */
   /**
    * @method Bacon.update2
-   * @description Creates an [Property]{@link Bacon.EventStream} from an `initial` value and a join-pattern system.
+   * @description Creates an [Property]{@link Bacon.Property} from an `initial` value and a join-pattern system.
    * @param {B} initial
    * @param {Observable<E, A1>[]} pattern1
    * @param {Bacon.update2~f1} f1
    * @param {Observable<E, A2>[]} pattern2
    * @param {Bacon.update2~f2} f2
-   * @returns {EventStream<E, B>}
+   * @returns {Property<E, B>}
    * @example
    * {
    *   // The inputs to `Bacon.update` are defined like this:
@@ -2555,26 +2559,29 @@ declare module Bacon {
    *   // In the example, the `score` property is updated when either `hitUfo` or `hitMotherShip` occur. The `scoreMultiplier` Property is sampled to take multiplier into account when `hitUfo` occurs.
    * }
    */
-  function update<E, A1, A2, B, C>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => C, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => C):Property<E, C>;
+  function update<E, A1, A2, B>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => B, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => B):Property<E, B>;
 
   /**
    * @callback Bacon.update3~f1
+   * @param {B} initial
    * @param {...A1} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update3~f2
+   * @param {B} initial
    * @param {...A2} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update3~f3
+   * @param {B} initial
    * @param {...A3} args
    * @returns {B}
    */
   /**
    * @method Bacon.update3
-   * @description Creates an [Property]{@link Bacon.EventStream} from an `initial` value and a join-pattern system.
+   * @description Creates an [Property]{@link Bacon.Property} from an `initial` value and a join-pattern system.
    * @param {B} initial
    * @param {Observable<E, A1>[]} pattern1
    * @param {Bacon.update3~f1} f1
@@ -2582,7 +2589,7 @@ declare module Bacon {
    * @param {Bacon.update3~f2} f2
    * @param {Observable<E, A3>[]} pattern3
    * @param {Bacon.update3~f3} f3
-   * @returns {EventStream<E, B>}
+   * @returns {Property<E, B>}
    * @example
    * {
    *   // The inputs to `Bacon.update` are defined like this:
@@ -2609,31 +2616,35 @@ declare module Bacon {
    *   // In the example, the `score` property is updated when either `hitUfo` or `hitMotherShip` occur. The `scoreMultiplier` Property is sampled to take multiplier into account when `hitUfo` occurs.
    * }
    */
-  function update<E, A1, A2, A3, B, C>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => C, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => C, pattern3:Observable<E, A3>[], f3:(initial:B, ...args:A3[]) => C):Property<E, C>;
+  function update<E, A1, A2, A3, B>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => B, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => B, pattern3:Observable<E, A3>[], f3:(initial:B, ...args:A3[]) => B):Property<E, B>;
 
   /**
    * @callback Bacon.update4~f1
+   * @param {B} initial
    * @param {...A1} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update4~f2
+   * @param {B} initial
    * @param {...A2} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update4~f3
+   * @param {B} initial
    * @param {...A3} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update4~f4
+   * @param {B} initial
    * @param {...A4} args
    * @returns {B}
    */
   /**
    * @method Bacon.update4
-   * @description Creates an [Property]{@link Bacon.EventStream} from an `initial` value and a join-pattern system.
+   * @description Creates an [Property]{@link Bacon.Property} from an `initial` value and a join-pattern system.
    * @param {B} initial
    * @param {Observable<E, A1>[]} pattern1
    * @param {Bacon.update4~f1} f1
@@ -2643,7 +2654,7 @@ declare module Bacon {
    * @param {Bacon.update4~f3} f3
    * @param {Observable<E, A4>[]} pattern4
    * @param {Bacon.update4~f4} f4
-   * @returns {EventStream<E, B>}
+   * @returns {Property<E, B>}
    * @example
    * {
    *   // The inputs to `Bacon.update` are defined like this:
@@ -2670,30 +2681,35 @@ declare module Bacon {
    *   // In the example, the `score` property is updated when either `hitUfo` or `hitMotherShip` occur. The `scoreMultiplier` Property is sampled to take multiplier into account when `hitUfo` occurs.
    * }
    */
-  function update<E, A1, A2, A3, A4, B, C>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => C, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => C, pattern3:Observable<E, A3>[], f3:(initial:B, ...args:A3[]) => C, pattern4:Observable<E, A4>[], f4:(initial:B, ...args:A4[]) => C):Property<E, C>;
+  function update<E, A1, A2, A3, A4, B>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => B, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => B, pattern3:Observable<E, A3>[], f3:(initial:B, ...args:A3[]) => B, pattern4:Observable<E, A4>[], f4:(initial:B, ...args:A4[]) => B):Property<E, B>;
 
   /**
    * @callback Bacon.update5~f1
+   * @param {B} initial
    * @param {...A1} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update5~f2
+   * @param {B} initial
    * @param {...A2} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update5~f3
+   * @param {B} initial
    * @param {...A3} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update5~f4
+   * @param {B} initial
    * @param {...A4} args
    * @returns {B}
    */
   /**
    * @callback Bacon.update5~f5
+   * @param {B} initial
    * @param {...A5} args
    * @returns {B}
    */
@@ -2711,7 +2727,7 @@ declare module Bacon {
    * @param {Bacon.update5~f4} f4
    * @param {Observable<E, A5>[]} pattern5
    * @param {Bacon.update5~f5} f5
-   * @returns {EventStream<E, B>}
+   * @returns {Property<E, B>}
    * @example
    * {
    *   // The inputs to `Bacon.update` are defined like this:
@@ -2738,7 +2754,7 @@ declare module Bacon {
    *   // In the example, the `score` property is updated when either `hitUfo` or `hitMotherShip` occur. The `scoreMultiplier` Property is sampled to take multiplier into account when `hitUfo` occurs.
    * }
    */
-  function update<E, A1, A2, A3, A4, A5, B, C>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => C, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => C, pattern3:Observable<E, A3>[], f3:(initial:B, ...args:A3[]) => C, pattern4:Observable<E, A4>[], f4:(initial:B, ...args:A4[]) => C, pattern5:Observable<E, A5>[], f5:(initial:B, ...args:A5[]) => C):Property<E, C>;
+  function update<E, A1, A2, A3, A4, A5, B>(initial:B, pattern1:Observable<E, A1>[], f1:(initial:B, ...args:A1[]) => B, pattern2:Observable<E, A2>[], f2:(initial:B, ...args:A2[]) => B, pattern3:Observable<E, A3>[], f3:(initial:B, ...args:A3[]) => B, pattern4:Observable<E, A4>[], f4:(initial:B, ...args:A4[]) => B, pattern5:Observable<E, A5>[], f5:(initial:B, ...args:A5[]) => B):Property<E, B>;
 }
 
 declare module "baconjs" {

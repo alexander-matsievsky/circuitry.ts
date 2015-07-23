@@ -1,23 +1,25 @@
 /// <reference path="./DefinitelyTyped/baconjs/baconjs.d.ts"/>
-// TODO: implement blueprint construction.
+// todo: implement viz.
+// todo: implement diagnosis (`console.log` + `WebSocket` viz binding).
 
 /*
- * FIXME: `InPort`s (consumers) don't get the first `OutPort`s (producers) values.
+ * fixme: `InPort`s (consumers) don't get the first `OutPort`s (producers) values.
  * Now it is patched by
  *   1/ making `bus` eager in `InPort.constructor()`;
  *   2/ delaying the wired `OutPort` in `Circuit.setup()` [ head.wire(tail.wire.delay(0)); ].
  * */
 
-export import Bacon = require("baconjs");
+import * as Bacon from "baconjs";
+export {Bacon}
 
 function uuid4():string {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-    var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+    let r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
 }
 
-var ERROR = {
+let ERROR = {
   MUST_BE_IN_PORT: (box:Descriptor, port:string) => port + " in " + box.toString() + " must be of type `InPort`",
   MUST_BE_OUT_PORT: (box:Descriptor, port:string) => port + " in " + box.toString() + " must be of type `OutPort`",
   MUST_BELONG_TO_BOX: (box:Descriptor, ports:Descriptor[]) => "ports {" + ports.map(port => port.toString()).join("") + "} must belong to box " + box
@@ -84,7 +86,7 @@ export class Descriptor {
 }
 
 export class InPort<A> {
-  private bus:Bacon.Bus<Error, A>;
+  bus:Bacon.Bus<Error, A>;
 
   constructor(public descriptor:Descriptor) {
     this.bus = new Bacon.Bus<Error, A>();
@@ -101,7 +103,7 @@ export class InPort<A> {
 }
 
 export class OutPort<A> {
-  private bus:Bacon.Bus<Error, A>;
+  bus:Bacon.Bus<Error, A>;
 
   constructor(public descriptor:Descriptor) {
     this.bus = new Bacon.Bus<Error, A>();
@@ -124,21 +126,21 @@ export class Wire<A> {
   }
 }
 
-export class Block<Memory extends Object, InPortMap, OutPortMap> {
+export class Block<Memory, InPortMap, OutPortMap> {
   public descriptor:Descriptor;
-  private memory:() => Memory;
+  private Mem:() => Memory;
   private In_:InPortMap;
   private Out_:OutPortMap;
-  private process:(memory:Memory, In:InPortMap, Out:OutPortMap) => void;
+  private process:(Mem:Memory, In:InPortMap, Out:OutPortMap) => void;
   private effects:{
     descriptor: Descriptor;
-    sensitivity: OutPort<any>;
-    effect: (memory:Memory, value:any) => void;
+    port: InPort<any>|OutPort<any>;
+    effect: (Mem:Memory, value:any) => void;
   }[];
 
-  constructor(descriptor:Descriptor, memory:() => Memory, In:InPortMap, Out:OutPortMap, process:(memory:Memory, In:InPortMap, Out:OutPortMap) => void) {
+  constructor(descriptor:Descriptor, Mem:() => Memory, In:InPortMap, Out:OutPortMap, process:(Mem:Memory, In:InPortMap, Out:OutPortMap) => void) {
     this.descriptor = descriptor;
-    this.memory = memory;
+    this.Mem = Mem;
     this.In_ = In;
     this.Out_ = Out;
     this.process = process;
@@ -146,13 +148,13 @@ export class Block<Memory extends Object, InPortMap, OutPortMap> {
   }
 
   setup() {
-    var memory = this.memory();
-    this.effects.forEach(({sensitivity, effect}) => {
-      sensitivity.wire.onValue(value => {
-        effect(memory, value);
+    let Mem = this.Mem();
+    this.effects.forEach(({port, effect}) => {
+      port.bus.onValue(value => {
+        effect(Mem, value);
       });
     });
-    this.process(memory, this.In, this.Out);
+    this.process(Mem, this.In, this.Out);
   }
 
   get In():InPortMap {
@@ -163,16 +165,25 @@ export class Block<Memory extends Object, InPortMap, OutPortMap> {
     return this.Out_;
   }
 
-  Effect<A>(descr:IDescriptor, sensitivity:OutPort<A>, effect:(memory:Memory, value:A) => void):void {
-    var outPorts = Object.keys(this.Out_).map(name => this.Out_[name]);
-    if (outPorts.indexOf(sensitivity) === -1) {
-      throw new Error(ERROR.MUST_BELONG_TO_BOX(this.descriptor, [sensitivity.descriptor]));
+  Effect<A>(descr:IDescriptor, sensitivity:(In:InPortMap, Out:OutPortMap) => InPort<A>|OutPort<A>, effect:(Mem:Memory, value:A) => void):Block<Memory, InPortMap, OutPortMap> {
+    let port = sensitivity(this.In_, this.Out_);
+    if (port instanceof InPort) {
+      let inPorts = Object.keys(this.In_).map(name => this.In_[name]);
+      if (inPorts.indexOf(port) === -1) {
+        throw new Error(ERROR.MUST_BELONG_TO_BOX(this.descriptor, [port.descriptor]));
+      }
+    } else {
+      let outPorts = Object.keys(this.Out_).map(name => this.Out_[name]);
+      if (outPorts.indexOf(port) === -1) {
+        throw new Error(ERROR.MUST_BELONG_TO_BOX(this.descriptor, [port.descriptor]));
+      }
     }
     this.effects.push({
       descriptor: new Descriptor(descr.title, descr.descr),
-      sensitivity: sensitivity,
+      port: port,
       effect: effect
     });
+    return this;
   }
 
   /*
@@ -181,11 +192,11 @@ export class Block<Memory extends Object, InPortMap, OutPortMap> {
    box: {
    descriptor: this.descriptor,
    inPorts: Object.keys(this.In).map(name => {
-   var port = this.In[name];
+   let port = this.In[name];
    return port.descriptor.id;
    }),
    outPorts: Object.keys(this.Out).map(name => {
-   var port = this.Out[name];
+   let port = this.Out[name];
    return port.descriptor.id;
    }),
    effects: this.effects.map(se => se.descriptor.id)
@@ -230,10 +241,10 @@ export class Circuit {
     return new OutPort<A>(new Descriptor(descr.title, descr.descr));
   }
 
-  Block<Memory extends Object, InPortMap, OutPortMap>(descr:IDescriptor, {Mem, In, Out}:{
+  Block<Memory, InPortMap, OutPortMap>(descr:IDescriptor, {Mem, In, Out}:{
     Mem:() => Memory; In:InPortMap; Out:OutPortMap
   }, process:(Mem:Memory, In:InPortMap, Out:OutPortMap) => void):Block<Memory, InPortMap, OutPortMap> {
-    var descriptor = new Descriptor(descr.title, descr.descr);
+    let descriptor = new Descriptor(descr.title, descr.descr);
     Object.keys(In).forEach(name => {
       if (!(In[name] instanceof InPort)) {
         throw new Error(ERROR.MUST_BE_IN_PORT(descriptor, name));
@@ -244,19 +255,19 @@ export class Circuit {
         throw new Error(ERROR.MUST_BE_OUT_PORT(descriptor, name));
       }
     });
-    var box = new Block(descriptor, Mem, In, Out, process);
+    let box = new Block(descriptor, Mem, In, Out, process);
     this.blocks[box.descriptor.id] = box;
     return box;
   }
 
   Wire<A>(tail:OutPort<A>, head:InPort<A>):void {
-    var wire = new Wire(head, tail);
+    let wire = new Wire(head, tail);
     this.wires[wire.descriptor.id] = wire;
   }
 
   setup() {
     Object.keys(this.wires).forEach(id => {
-      var {head, tail} = this.wires[id];
+      let {head, tail} = this.wires[id];
       head.wire(tail.wire.delay(0));
     });
     Object.keys(this.blocks).forEach(id => {
@@ -267,7 +278,7 @@ export class Circuit {
   /*
    toBlueprint():Blueprint {
    return Object.keys(this.blocks).reduce((obj, id) => {
-   var box = this.blocks[id], blueprint = box.toBlueprint();
+   let box = this.blocks[id], blueprint = box.toBlueprint();
    obj.box[id] = blueprint.box;
    blueprint.inPorts.forEach(inPort => {
    obj.inPort[inPort.descriptor.id] = inPort;
@@ -299,7 +310,7 @@ export class Circuit {
    box:string
    }}>{},
    wire: Object.keys(this.wires).reduce((wire, id) => {
-   var $wire = this.wires[id];
+   let $wire = this.wires[id];
    wire[id] = {
    head: $wire.head.descriptor.id,
    tail: $wire.tail.descriptor.id

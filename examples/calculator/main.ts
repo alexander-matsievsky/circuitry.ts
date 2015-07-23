@@ -2,7 +2,7 @@ import {Circuit, Bacon} from "../../src/lib";
 
 enum Operator { PLUS, MINUS, TIMES, DIVISION }
 
-let cir = new Circuit({
+let calc = new Circuit({
     title: "Calculator",
     descr: "Kinda analog calculator"
   }),
@@ -15,7 +15,7 @@ let cir = new Circuit({
       .map(line => parseInt(line, 10) || 0)
       .toEventStream();
 
-let lhs = cir.Block({
+let lhs = calc.Block({
   title: "LHS operand generator",
   descr: "Provides left-hand-side operand for calculation"
 }, {
@@ -26,19 +26,19 @@ let lhs = cir.Block({
   }),
   In: {},
   Out: {
-    value: cir.Out<number>({title: "LHS operand", descr: "LHS operand"})
+    value: calc.Out<number>({title: "LHS operand", descr: "LHS operand"})
   }
 }, (Mem, In, Out) => {
   Out.value.$ = decodeOperand(Mem.keyboard, Mem.initialValue);
-});
-lhs.Effect({
-  title: "LHS operand printer",
-  descr: "Prints left-hand-side operand to display"
-}, lhs.Out.value, (Mem, value) => {
-  Mem.display.innerHTML = `${value}`;
-});
+})
+  .Effect<number>({
+    title: "LHS operand printer",
+    descr: "Prints left-hand-side operand to display"
+  }, (In, Out) => Out.value, (Mem, value) => {
+    Mem.display.innerHTML = `${value}`;
+  });
 
-let rhs = cir.Block({
+let rhs = calc.Block({
   title: "RHS operand generator",
   descr: "Provides right-hand-side operand for calculation"
 }, {
@@ -49,19 +49,19 @@ let rhs = cir.Block({
   }),
   In: {},
   Out: {
-    value: cir.Out<number>({title: "RHS operand", descr: "RHS operand"})
+    value: calc.Out<number>({title: "RHS operand", descr: "RHS operand"})
   }
 }, (Mem, In, Out) => {
   Out.value.$ = decodeOperand(Mem.keyboard, Mem.initialValue);
-});
-rhs.Effect({
-  title: "RHS operand printer",
-  descr: "Prints right-hand-side operand to display"
-}, rhs.Out.value, (Mem, n) => {
-  Mem.display.innerHTML = `${n}`;
-});
+})
+  .Effect<number>({
+    title: "RHS operand printer",
+    descr: "Prints right-hand-side operand to display"
+  }, (In, Out) => Out.value, (Mem, n) => {
+    Mem.display.innerHTML = `${n}`;
+  });
 
-let op = cir.Block({
+let op = calc.Block({
   title: "Operator generator",
   descr: "Provides operator for calculation"
 }, {
@@ -72,8 +72,8 @@ let op = cir.Block({
   }),
   In: {},
   Out: {
-    value: cir.Out<Operator>({title: "Operator", descr: ""}),
-    symbol: cir.Out<string>({title: "Operator symbol", descr: ""})
+    value: calc.Out<Operator>({title: "Operator", descr: ""}),
+    symbol: calc.Out<string>({title: "Operator symbol", descr: ""})
   }
 }, (Mem, In, Out)=> {
   let sign = Bacon.fromEvent<Error, Event, HTMLButtonElement>(Mem.keyboard, "click", ({target}) => <HTMLButtonElement>target)
@@ -93,15 +93,15 @@ let op = cir.Block({
         return Operator.DIVISION;
     }
   });
-});
-op.Effect({
-  title: "Operator printer",
-  descr: ""
-}, op.Out.symbol, (Mem, symbol) => {
-  Mem.display.innerHTML = symbol;
-});
+})
+  .Effect<string>({
+    title: "Operator printer",
+    descr: ""
+  }, (In, Out) => Out.symbol, (Mem, symbol) => {
+    Mem.display.innerHTML = symbol;
+  });
 
-let calculator = cir.Block({
+let calculator = calc.Block({
   title: "Calculator",
   descr: "Simple binary operation calculator"
 }, {
@@ -109,12 +109,12 @@ let calculator = cir.Block({
     display: <HTMLSpanElement>document.querySelector("form[name=calculator] fieldset[name=result] code")
   }),
   In: {
-    lhs: cir.In<number>({title: "A", descr: "First operand"}),
-    rhs: cir.In<number>({title: "B", descr: "Second operand"}),
-    op: cir.In<Operator>({title: "O", descr: "Operand"})
+    lhs: calc.In<number>({title: "A", descr: "First operand"}),
+    rhs: calc.In<number>({title: "B", descr: "Second operand"}),
+    op: calc.In<Operator>({title: "O", descr: "Operand"})
   },
   Out: {
-    c: cir.Out<number>({title: "C", descr: "Result"})
+    c: calc.Out<number>({title: "C", descr: "Result"})
   }
 }, (Mem, In, Out) => {
   Out.c.$ = Bacon.combineTemplate<Error, {lhs:number; rhs:number; op:Operator}>({
@@ -133,16 +133,16 @@ let calculator = cir.Block({
           return lhs / rhs;
       }
     });
-});
-calculator.Effect({
-  title: "Result printer",
-  descr: ""
-}, calculator.Out.c, (Mem, c) => {
-  Mem.display.innerHTML = `${c}`;
-});
+})
+  .Effect<number>({
+    title: "Result printer",
+    descr: ""
+  }, (In, Out) => Out.c, (Mem, c) => {
+    Mem.display.innerHTML = `${c}`;
+  });
 
-cir.Wire(lhs.Out.value, calculator.In.lhs);
-cir.Wire(rhs.Out.value, calculator.In.rhs);
-cir.Wire(op.Out.value, calculator.In.op);
+calc.Wire(lhs.Out.value, calculator.In.lhs);
+calc.Wire(rhs.Out.value, calculator.In.rhs);
+calc.Wire(op.Out.value, calculator.In.op);
 
-cir.setup();
+calc.setup();
