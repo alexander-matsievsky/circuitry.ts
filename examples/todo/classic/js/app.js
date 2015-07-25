@@ -1,10 +1,8 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-// todo: Item
-// todo: Editing
 var lib_1 = require("../../../../src/lib");
 function uuid4() {
     return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        var r = Math.random() * 16 | 0, v = c == "x" ? r : (r & 0x3 | 0x8);
         return v.toString(16);
     });
 }
@@ -21,15 +19,16 @@ var Editing;
 })(Editing || (Editing = {}));
 var F;
 (function (F) {
-    function keypress(target, key) {
-        return lib_1.Bacon.fromEvent(target, "keypress")
+    function keypress(target, keys, keydown) {
+        if (keydown === void 0) { keydown = false; }
+        return lib_1.Bacon.fromEvent(target, keydown ? "keydown" : "keypress")
             .filter(function (event) {
             // note: for FF/IE
             if ("key" in event) {
-                return event.key === key;
+                return keys.indexOf(event.key) > -1;
             }
             else if ("keyIdentifier" in event) {
-                return event.keyIdentifier === key;
+                return keys.indexOf(event.keyIdentifier) > -1;
             }
             else {
                 throw new Error("UNREACHABLE!");
@@ -50,21 +49,48 @@ var F;
 window.addEventListener("load", function () {
     var todo = new lib_1.Circuit({
         title: "Todo application",
-        descr: "Simple locally stored todo list."
+        descr: "Simple locally stored todo-list."
     });
-    var resource = todo.Block(lib_1.DESCRIBE_LATER, {
+    var resource = todo.Block({
+        title: "Todo-list REST-like resource",
+        descr: "\n* restores todo-list from `restore`;\n* accepts, validates, incorporates todo-list `POST` updates;\n* accepts, validates, incorporates todo-list `PUT` updates;\n* accepts, validates, incorporates todo-list `DELETE` updates;\n* aggregates todo-list `POST`, `PUT`, `DELETE` updates and tracks the current state with `GET`.\n"
+    }, {
         Mem: lib_1.EMPTY_MEM,
         In: {
-            restore: todo.In(lib_1.DESCRIBE_LATER),
-            POST: todo.In(lib_1.DESCRIBE_LATER),
-            PUT: todo.In(lib_1.DESCRIBE_LATER),
-            DELETE: todo.In(lib_1.DESCRIBE_LATER)
+            restore: todo.In({
+                title: "Initial todo-list at the start-up time",
+                descr: "An initial todo-list at the start-up time"
+            }),
+            POST: todo.In({
+                title: "Todo-list `POST` update",
+                descr: "Creates a new todo."
+            }),
+            PUT: todo.In({
+                title: "Todo-list `PUT` update",
+                descr: "Updates an existing todo, which *MUST* exist in the todo-list."
+            }),
+            DELETE: todo.In({
+                title: "Todo-list `DELETE` update",
+                descr: "Deletes an existing todo, which *MUST* exist in the todo-list."
+            })
         },
         Out: {
-            GET: todo.Out(lib_1.DESCRIBE_LATER),
-            POST: todo.Out(lib_1.DESCRIBE_LATER),
-            PUT: todo.Out(lib_1.DESCRIBE_LATER),
-            DELETE: todo.Out(lib_1.DESCRIBE_LATER)
+            GET: todo.Out({
+                title: "Todo `GET`ter",
+                descr: "A currently actual full todo-list with full info."
+            }),
+            POST: todo.Out({
+                title: "Todo `POST`er",
+                descr: "A newly created todo-list item with full info."
+            }),
+            PUT: todo.Out({
+                title: "Todo `PUT`ter",
+                descr: "An updated todo-list item with full info."
+            }),
+            DELETE: todo.Out({
+                title: "Todo `DELETE`r",
+                descr: "A deleted todo-list item with full info."
+            })
         }
     }, function (Mem, In, Out) {
         var POST = lib_1.Bacon.mergeAll(In.POST.$.map(function (POST) { return ({
@@ -76,11 +102,12 @@ window.addEventListener("load", function () {
             return [todos.concat(POST), null, POST];
         }, [In.PUT.$], function (_a, PUT) {
             var todos = _a[0];
-            var matchingTodos = todos.filter(function (todo) { return todo.id === PUT.id; });
-            switch (matchingTodos.length) {
+            switch (todos.filter(function (_a) {
+                var id = _a.id;
+                return id === PUT.id;
+            }).length) {
                 case 0:
                     return [todos, new Error("PUT[" + JSON.stringify(PUT) + "] is absent from the todo-list"), null];
-                    break;
                 case 1:
                     var updatedTodos = todos.map(function (todo) { return todo.id !== PUT.id ? todo : {
                         id: PUT.id,
@@ -88,24 +115,22 @@ window.addEventListener("load", function () {
                         completed: "completed" in PUT ? PUT.completed : todo.completed
                     }; });
                     return [updatedTodos, null, updatedTodos.filter(function (todo) { return todo.id === PUT.id; })[0]];
-                    break;
                 default:
                     return [todos, new Error("PUT[" + JSON.stringify(PUT) + "] is presented in the todo-list multiple times"), null];
-                    break;
             }
         }, [In.DELETE.$], function (_a, DELETE) {
             var todos = _a[0];
-            var matchingTodos = todos.filter(function (todo) { return todo.id === DELETE.id; });
+            var matchingTodos = todos.filter(function (_a) {
+                var id = _a.id;
+                return id === DELETE.id;
+            });
             switch (matchingTodos.length) {
                 case 0:
                     return [todos, new Error("DELETE[" + JSON.stringify(DELETE) + "] is absent from the todo-list"), null];
-                    break;
                 case 1:
                     return [todos.filter(function (todo) { return todo.id !== DELETE.id; }), null, matchingTodos[0]];
-                    break;
                 default:
                     return [todos, new Error("DELETE[" + JSON.stringify(DELETE) + "] is presented in the todo-list multiple times"), null];
-                    break;
             }
         })
             .flatMap(function (_a) {
@@ -129,15 +154,24 @@ window.addEventListener("load", function () {
             return DELETE;
         }).filter(function (_) { return _ !== null; });
     });
-    var persistence = todo.Block(lib_1.DESCRIBE_LATER, {
+    var persistence = todo.Block({
+        title: "Todo persister",
+        descr: "\n* stores todo-list updates;\n* restores todo-list between sessions through `localStorage`;\n"
+    }, {
         Mem: function () { return ({
             label: "todos-circuitry.ts"
         }); },
         In: {
-            store: todo.In(lib_1.DESCRIBE_LATER)
+            store: todo.In({
+                title: "Todo-list to store in a `localStorage`",
+                descr: "A todo-list to store in a `localStorage`."
+            })
         },
         Out: {
-            restore: todo.Out(lib_1.DESCRIBE_LATER)
+            restore: todo.Out({
+                title: "Todo-list restored from a `localStorage`",
+                descr: "A todo-list restored from a `localStorage`."
+            })
         }
     }, function (Mem, In, Out) {
         Out.restore.$ = lib_1.Bacon
@@ -146,12 +180,16 @@ window.addEventListener("load", function () {
             .toEventStream();
     })
         .Effect({
-        title: "Persistence",
-        descr: "Your app should dynamically persist the todos to localStorage. If the framework has capabilities for persisting data (e.g. Backbone.sync), use that, otherwise vanilla localStorage. If possible, use the keys id, title, completed for each item. Make sure to use this format for the localStorage name: todos-[framework]. Editing mode should not be persisted."
-    }, function (In, Out) { return In.store; }, function (Mem, store) {
-        localStorage.setItem(Mem.label, JSON.stringify(store));
+        title: "Functionality: Persistence",
+        descr: "Your app should dynamically persist the todos to localStorage. If the framework has capabilities for persisting data (e.g. Backbone.sync), use that, otherwise vanilla localStorage. If possible, use the keys `id`, `title`, `completed` for each item. Make sure to use this format for the localStorage name: `todos-[framework]`. Editing mode should not be persisted."
+    }, function (In, Out) { return In.store; }, function (_a, store) {
+        var label = _a.label;
+        localStorage.setItem(label, JSON.stringify(store));
     });
-    var widget = todo.Block(lib_1.DESCRIBE_LATER, {
+    var widget = todo.Block({
+        title: "Todo widget",
+        descr: "The widget implements the required [Functionality](https://github.com/tastejs/todomvc/blob/master/app-spec.md#functionality)"
+    }, {
         Mem: function () {
             var header = document.querySelector("header.header"), main = document.querySelector("section.main"), footer = document.querySelector("footer.footer"), filters = footer.querySelector("ul.filters");
             return {
@@ -174,139 +212,212 @@ window.addEventListener("load", function () {
             };
         },
         In: {
-            GET: todo.In(lib_1.DESCRIBE_LATER),
-            POST: todo.In(lib_1.DESCRIBE_LATER),
-            PUT: todo.In(lib_1.DESCRIBE_LATER),
-            DELETE: todo.In(lib_1.DESCRIBE_LATER)
+            GET: todo.In({
+                title: "Todo `GET`ter",
+                descr: "A currently actual full todo-list with full info."
+            }),
+            POST: todo.In({
+                title: "Todo `POST`er",
+                descr: "A newly created todo-list item with full info."
+            }),
+            PUT: todo.In({
+                title: "Todo `PUT`ter",
+                descr: "An updated todo-list item with full info."
+            }),
+            DELETE: todo.In({
+                title: "Todo `DELETE`r",
+                descr: "A deleted todo-list item with full info."
+            })
         },
         Out: {
-            POST: todo.Out(lib_1.DESCRIBE_LATER),
-            editing: todo.Out(lib_1.DESCRIBE_LATER),
-            PUT: todo.Out(lib_1.DESCRIBE_LATER),
-            DELETE: todo.Out(lib_1.DESCRIBE_LATER),
-            tab: todo.Out(lib_1.DESCRIBE_LATER),
-            filtered: todo.Out(lib_1.DESCRIBE_LATER)
+            POST: todo.Out({
+                title: "Todo-list `POST` update",
+                descr: "Creates a new todo."
+            }),
+            PUT: todo.Out({
+                title: "Todo-list `PUT` update",
+                descr: "Updates an existing todo."
+            }),
+            DELETE: todo.Out({
+                title: "Todo-list `DELETE` update",
+                descr: "Deletes an existing todo."
+            }),
+            editing: todo.Out({
+                title: "Todo-list item's editing process",
+                descr: "Denotes which todo (by `id`) is in the editing process in which `phaze`. `phaze` can be:\n* START - begin editing the todo, display this fact in the UI;\n* STOP - finish editing the todo, display this fact in the UI.\n"
+            }),
+            tab: todo.Out({
+                title: "Todo-list selected filter-tab",
+                descr: "Denotes the currently active filter tab. Can be:\n* ALL - display all todos;\n* ACTIVE - display non-`completed` todos only;\n* COMPLETED - display `completed` todos only.\n"
+            }),
+            filtered: todo.Out({
+                title: "Todo-list items' visibility",
+                descr: "Denotes which todos to `show` or `hide` in the todo-list."
+            })
         }
     }, function (Mem, In, Out) {
-        Out.POST.$ = F.keypress(Mem.DOM.newTodo, "Enter")
+        var todoList = Mem.DOM.todoList, editingStart = F.mouse(todoList, "dblclick", "LABEL", [])
+            .map(function (_a) {
+            var id = _a.parentElement.parentElement.dataset["id"];
+            return { id: id, phaze: Editing.START };
+        }), editingCancel = editingStart.toProperty()
+            .sampledBy(lib_1.Bacon.mergeAll([
+            F.keypress(todoList, ["U+001B", "Esc", "Escape"], true).map(true),
+            lib_1.Bacon.fromBinder(function (sink) {
+                todoList.addEventListener("blur", sink, true);
+                return function () { return void todoList.removeEventListener("blur", sink); };
+            }).map(true)
+        ]))
+            .map(function (_a) {
+            var id = _a.id;
+            return ({ id: id, phaze: Editing.STOP });
+        }), editingAccept = editingStart.toProperty()
+            .sampledBy(F.keypress(todoList, ["U+000D", "Enter"], true)
+            .map(function (event) {
+            var input = event.target, id = input.parentElement.dataset["id"];
+            return id;
+        }), function (_a, acceptId) {
+            var id = _a.id;
+            return ({ id: id, acceptId: acceptId });
+        }), editingValue = editingAccept
+            .filter(function (_a) {
+            var id = _a.id, acceptId = _a.acceptId;
+            return id === acceptId;
+        })
+            .map(function (_a) {
+            var id = _a.id;
+            var input = todoList.querySelector("[data-id=\"" + id + "\"] input.edit");
+            return {
+                id: id,
+                title: input.value,
+                previousTitle: input.getAttribute("value")
+            };
+        }), toggle = F.mouse(todoList, "click", "INPUT", ["toggle"])
+            .map(function (_a) {
+            var checked = _a.checked, id = _a.parentElement.parentElement.dataset["id"];
+            return { id: id, completed: checked };
+        }), toggleAll = In.GET.$.toProperty()
+            .sampledBy(F.mouse(Mem.DOM.toggleAll, "click", "INPUT", ["toggle-all"]).map(function (_a) {
+            var checked = _a.checked;
+            return checked;
+        }), function (todos, completed) { return todos.map(function (_a) {
+            var id = _a.id;
+            return { id: id, completed: completed };
+        }); }).flatMap(lib_1.Bacon.fromArray), destroy = F.mouse(todoList, "click", "BUTTON", ["destroy"])
+            .map(function (_a) {
+            var id = _a.parentElement.parentElement.dataset["id"];
+            return ({ id: id });
+        }), clearCompleted = In.GET.$.toProperty()
+            .sampledBy(lib_1.Bacon.fromEvent(Mem.DOM.clearCompleted, "click"))
+            .map(function (todos) { return todos.reduce(function (ids, _a) {
+            var id = _a.id, completed = _a.completed;
+            return ids.concat(completed ? [{ id: id }] : []);
+        }, []); })
+            .filter(function (ids) { return ids.length > 0; })
+            .flatMap(lib_1.Bacon.fromArray), tab = lib_1.Bacon.mergeAll([
+            // note: `.delay(0)` here is to emulate the `start-of-life` moment by pushing onto event loop.
+            lib_1.Bacon.once(true).delay(0),
+            lib_1.Bacon.fromEvent(window, "popstate", function (_) { return true; })
+        ]).map(function (_) {
+            var match = document.location.hash.match(/\w+/g);
+            if (match === null) {
+                return Tab.ALL;
+            }
+            switch (match[0]) {
+                case "active":
+                    return Tab.ACTIVE;
+                case "completed":
+                    return Tab.COMPLETED;
+                default:
+                    return Tab.ALL;
+            }
+        });
+        Out.POST.$ = F.keypress(Mem.DOM.newTodo, ["U+000D", "Enter"])
             .map(function (event) { return event.target.value; })
             .filter(function (title) { return title.length > 0; })
             .map(function (title) { return ({ title: title }); });
-        {
-            var editingStart = F.mouse(Mem.DOM.todoList, "dlclick", "DIV", ["view"])
+        Out.PUT.$ = lib_1.Bacon.mergeAll([toggle, toggleAll,
+            editingValue
+                .filter(function (_a) {
+                var title = _a.title, previousTitle = _a.previousTitle;
+                return title.length > 0 && title !== previousTitle;
+            })
                 .map(function (_a) {
-                var id = _a.parentElement.dataset["id"];
-                return ({
-                    id: id,
-                    phaze: Editing.START
-                });
-            }), editingStop = editingStart.toProperty()
-                .sampledBy(F.keypress(window, "ESC"))
+                var id = _a.id, title = _a.title;
+                return ({ id: id, title: title });
+            })
+        ]);
+        Out.DELETE.$ = lib_1.Bacon.mergeAll([destroy, clearCompleted,
+            editingValue
+                .filter(function (_a) {
+                var title = _a.title, previousTitle = _a.previousTitle;
+                return title.length === 0;
+            })
                 .map(function (_a) {
+                var id = _a.id, title = _a.title;
+                return ({ id: id });
+            })
+        ]);
+        Out.editing.$ = lib_1.Bacon.mergeAll([editingStart, editingCancel,
+            editingAccept.map(function (_a) {
                 var id = _a.id;
                 return ({ id: id, phaze: Editing.STOP });
-            }), toggle = F.mouse(Mem.DOM.todoList, "click", "INPUT", ["toggle"])
-                .map(function (_a) {
-                var checked = _a.checked, id = _a.parentElement.parentElement.dataset["id"];
-                return { id: id, completed: checked };
-            }), toggleAll = In.GET.$.toProperty()
-                .sampledBy(F.mouse(Mem.DOM.toggleAll, "click", "INPUT", ["toggle-all"])
-                .map(function (_a) {
-                var checked = _a.checked;
-                return checked;
-            }), function (todos, completed) { return todos.map(function (todo) { return ({
-                id: todo.id, completed: completed
-            }); }); })
-                .flatMap(lib_1.Bacon.fromArray);
-            Out.editing.$ = lib_1.Bacon.mergeAll([editingStart, editingStop]);
-            Out.PUT.$ = lib_1.Bacon.mergeAll([toggle, toggleAll]);
-        }
-        {
-            var destroy = F.mouse(Mem.DOM.todoList, "click", "BUTTON", ["destroy"])
-                .map(function (_a) {
-                var dataset = _a.parentElement.parentElement.dataset;
-                return ({ id: dataset["id"] });
-            }), clearCompleted = In.GET.$.toProperty()
-                .sampledBy(lib_1.Bacon.fromEvent(Mem.DOM.clearCompleted, "click"))
-                .map(function (todos) { return todos.reduce(function (ids, todo) {
-                return ids.concat(todo.completed ? [{ id: todo.id }] : []);
-            }, []); })
-                .filter(function (ids) { return ids.length > 0; })
-                .flatMap(lib_1.Bacon.fromArray);
-            Out.DELETE.$ = lib_1.Bacon.mergeAll([destroy, clearCompleted]);
-        }
-        {
-            var tab = lib_1.Bacon.mergeAll([
-                // note: `.delay(0)` here is to emulate the `start-of-life` moment by pushing onto event loop.
-                lib_1.Bacon.once(true).delay(0),
-                lib_1.Bacon.fromEvent(window, "popstate", function (_) { return true; })
-            ]).map(function (_) {
-                var match = document.location.hash.match(/\w+/g);
-                if (match === null) {
-                    return Tab.ALL;
-                }
-                switch (document.location.hash.match(/\w+/g)[0]) {
-                    case "active":
-                        return Tab.ACTIVE;
-                    case "completed":
-                        return Tab.COMPLETED;
-                    default:
-                        return Tab.ALL;
-                }
-            });
-            Out.tab.$ = tab;
-            Out.filtered.$ = In.GET.$.toProperty().sampledBy(
-            // note: need to `.throttle(0)` here to push the `filtered` onto event loop after rendering the item got from `In.GET.$`.
-            lib_1.Bacon.mergeAll([tab, tab.toProperty().sampledBy(In.GET.$.throttle(0))]), function (todos, tab) {
-                var _a = todos.reduce(function (_a, _b) {
-                    var active = _a.active, completed = _a.completed;
-                    var id = _b.id, todoCompleted = _b.completed;
-                    return todoCompleted ? {
-                        active: active,
-                        completed: completed.concat(id)
-                    } : {
-                        active: active.concat(id),
-                        completed: completed
+            })
+        ]);
+        Out.tab.$ = tab;
+        Out.filtered.$ = In.GET.$.toProperty().sampledBy(
+        // note: need to `.throttle(0)` here to push the `filtered` onto event loop after rendering the item got from `In.GET.$`.
+        lib_1.Bacon.mergeAll([tab, tab.toProperty().sampledBy(In.GET.$.throttle(0))]), function (todos, tab) {
+            var _a = todos.reduce(function (_a, _b) {
+                var active = _a.active, completed = _a.completed;
+                var id = _b.id, todoCompleted = _b.completed;
+                return todoCompleted ? {
+                    active: active,
+                    completed: completed.concat(id)
+                } : {
+                    active: active.concat(id),
+                    completed: completed
+                };
+            }, { active: [], completed: [] }), active = _a.active, completed = _a.completed;
+            switch (tab) {
+                case Tab.ALL:
+                    return {
+                        show: active.concat(completed),
+                        hide: []
                     };
-                }, { active: [], completed: [] }), active = _a.active, completed = _a.completed;
-                switch (tab) {
-                    case Tab.ALL:
-                        return {
-                            show: active.concat(completed),
-                            hide: []
-                        };
-                    case Tab.ACTIVE:
-                        return {
-                            show: active,
-                            hide: completed
-                        };
-                    case Tab.COMPLETED:
-                        return {
-                            show: completed,
-                            hide: active
-                        };
-                }
-            });
-        }
+                case Tab.ACTIVE:
+                    return {
+                        show: active,
+                        hide: completed
+                    };
+                case Tab.COMPLETED:
+                    return {
+                        show: completed,
+                        hide: active
+                    };
+            }
+        });
     })
         .Effect({
         title: "Functionality: No todos",
-        descr: "When there are no todos, #main and #footer should be hidden."
-    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
-        if (todos.length === 0) {
-            Mem.DOM.main.style.display = "none";
-            Mem.DOM.footer.style.display = "none";
+        descr: "When there are no todos, \`#main\` and \`#footer\` should be hidden."
+    }, function (In, Out) { return In.GET; }, function (_a, _b) {
+        var _c = _a.DOM, main = _c.main, footer = _c.footer;
+        var length = _b.length;
+        if (length === 0) {
+            main.style.display = "none";
+            footer.style.display = "none";
         }
         else {
-            Mem.DOM.main.style.display = "inherit";
-            Mem.DOM.footer.style.display = "inherit";
+            main.style.display = "inherit";
+            footer.style.display = "inherit";
         }
     })
         .Effect({
         title: "Functionality: Mark all as complete",
         descr: "This checkbox toggles all the todos to the same state as itself. Make sure to clear the checked state after the the \"Clear completed\" button is clicked. The \"Mark all as complete\" checkbox should also be updated when single todo items are checked/unchecked. Eg. When all the todos are checked it should also get checked."
-    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
-        var toggleAll = Mem.DOM.toggleAll;
+    }, function (In, Out) { return In.GET; }, function (_a, todos) {
+        var toggleAll = _a.DOM.toggleAll;
         toggleAll.checked = todos.every(function (_a) {
             var completed = _a.completed;
             return completed;
@@ -321,62 +432,97 @@ window.addEventListener("load", function () {
         .Effect({
         title: "Functionality: Clear completed button",
         descr: "Removes completed todos when clicked. Should be hidden when there are no completed todos."
-    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
-        Mem.DOM.clearCompleted.style.display = todos.every(function (_a) {
+    }, function (In, Out) { return In.GET; }, function (_a, todos) {
+        var style = _a.DOM.clearCompleted.style;
+        style.display = todos.every(function (_a) {
             var completed = _a.completed;
             return !completed;
         }) ? "none" : "inherit";
     })
         .Effect({
         title: "Functionality: Counter",
-        descr: "Displays the number of active todos in a pluralized form. Make sure the number is wrapped by a <strong> tag. Also make sure to pluralize the item word correctly: 0 items, 1 item, 2 items. Example: 2 items left"
-    }, function (In, Out) { return In.GET; }, function (Mem, todos) {
-        var active = todos.filter(function (_a) {
+        descr: "Displays the number of active todos in a pluralized form. Make sure the number is wrapped by a `<strong>` tag. Also make sure to pluralize the `item` word correctly: `0 items`, `1 item`, `2 items`. Example: **2** items left"
+    }, function (In, Out) { return In.GET; }, function (_a, todos) {
+        var todoCount = _a.DOM.todoCount;
+        var length = todos.filter(function (_a) {
             var completed = _a.completed;
             return !completed;
-        }), s = active.length === 1 ? "" : "s";
-        Mem.DOM.todoCount.innerHTML = "<strong>" + active.length + "</strong> item" + s + " left";
+        }).length, s = length === 1 ? "" : "s";
+        todoCount.innerHTML = "<strong>" + length + "</strong> item" + s + " left";
     })
         .Effect({
         title: "Functionality: New todo",
-        descr: "Make sure to .trim() the input and then check that it's not empty before creating a new todo."
-    }, function (In, Out) { return Out.POST; }, function (Mem, _) {
-        var newTodo = Mem.DOM.newTodo;
+        descr: "New todos are entered in the input at the top of the app. The input element should be focused when the page is loaded preferably using the `autofocus` input attribute. Pressing Enter creates the todo, appends it to the todo list and clears the input. Make sure to `.trim()` the input and then check that it's not empty before creating a new todo."
+    }, function (In, Out) { return Out.POST; }, function (_a, _) {
+        var newTodo = _a.DOM.newTodo;
         newTodo.value = "";
         newTodo.setAttribute("value", "");
     })
-        .Effect(lib_1.DESCRIBE_LATER, function (In, Out) { return In.POST; }, function (Mem, todo) {
-        var completed = todo.completed ? "class=\"completed\"" : "", checked = todo.completed ? "checked=\"checked\"" : "";
-        Mem.DOM.todoList.innerHTML += "\n<li data-id=\"" + todo.id + "\" " + completed + ">\n\t<div class=\"view\">\n\t\t<input class=\"toggle\" type=\"checkbox\" " + checked + ">\n\t\t<label>" + todo.title + "</label>\n\t\t<button class=\"destroy\"></button>\n\t</div>\n\t<input class=\"edit\" value=\"" + todo.title + "\">\n</li>";
+        .Effect({
+        title: "Todo `POST`er",
+        descr: "Creates a view for a newly posted todo. Every later update goes through `PUT`ter."
+    }, function (In, Out) { return In.POST; }, function (_a, _b) {
+        var todoList = _a.DOM.todoList;
+        var id = _b.id, title = _b.title, completed = _b.completed;
+        var $completed = completed ? "class=\"completed\"" : "", checked = completed ? "checked=\"checked\"" : "";
+        todoList.innerHTML += "\n<li data-id=\"" + id + "\" " + $completed + ">\n\t<div class=\"view\">\n\t\t<input class=\"toggle\" type=\"checkbox\" " + checked + ">\n\t\t<label>" + title + "</label>\n\t\t<button class=\"destroy\"></button>\n\t</div>\n\t<input class=\"edit\" value=\"" + title + "\">\n</li>";
     })
-        .Effect(lib_1.DESCRIBE_LATER, function (In, Out) { return In.PUT; }, function (Mem, todo) {
-        var li = Mem.DOM.todoList.querySelector("[data-id=\"" + todo.id + "\"]"), toggle = li.querySelector(".toggle"), edit = li.querySelector(".edit");
-        toggle.checked = todo.completed;
-        if (todo.completed) {
+        .Effect({
+        title: "Functionality: Editing",
+        descr: "When editing mode is activated it will hide the other controls and bring forward an input that contains the todo title, which should be focused (`.focus()`). The edit should be saved on both blur and enter, and the `editing` class should be removed. Make sure to `.trim()` the input and then check that it's not empty. If it's empty the todo should instead be destroyed. If escape is pressed during the edit, the edit state should be left and any changes be discarded."
+    }, function (In, Out) { return Out.editing; }, function (_a, _b) {
+        var todoList = _a.DOM.todoList;
+        var id = _b.id, phaze = _b.phaze;
+        var li = todoList.querySelector("[data-id=\"" + id + "\"]"), classList = li.classList, edit = li.querySelector("input.edit");
+        switch (phaze) {
+            case Editing.START:
+                classList.add("editing");
+                edit.focus();
+                break;
+            case Editing.STOP:
+                classList.remove("editing");
+                edit.value = edit.getAttribute("value");
+                break;
+        }
+    })
+        .Effect({
+        title: "Todo `PUT`ter",
+        descr: "Updates a view for every todo update after `POST`er."
+    }, function (In, Out) { return In.PUT; }, function (_a, _b) {
+        var todoList = _a.DOM.todoList;
+        var id = _b.id, title = _b.title, completed = _b.completed;
+        var li = todoList.querySelector("[data-id=\"" + id + "\"]"), toggle = li.querySelector(".toggle"), edit = li.querySelector(".edit");
+        toggle.checked = completed;
+        if (completed) {
             toggle.setAttribute("checked", "checked");
         }
         else {
             toggle.removeAttribute("checked");
         }
-        li.querySelector("label").textContent = todo.title;
-        edit.value = todo.title;
-        edit.setAttribute("value", todo.title);
-        if (todo.completed) {
+        li.querySelector("label").textContent = title;
+        edit.value = title;
+        edit.setAttribute("value", title);
+        if (completed) {
             li.classList.add("completed");
         }
         else {
             li.classList.remove("completed");
         }
     })
-        .Effect(lib_1.DESCRIBE_LATER, function (In, Out) { return In.DELETE; }, function (Mem, todo) {
-        var el = Mem.DOM.todoList.querySelector("[data-id=\"" + todo.id + "\"]");
+        .Effect({
+        title: "Todo `DELETE`r",
+        descr: "Deletes a view for a deleted todo."
+    }, function (In, Out) { return In.DELETE; }, function (_a, _b) {
+        var todoList = _a.DOM.todoList;
+        var id = _b.id;
+        var el = todoList.querySelector("[data-id=\"" + id + "\"]");
         el.parentElement.removeChild(el);
     })
         .Effect({
         title: "Functionality: Routing",
-        descr: "Routing is required for all frameworks. The following routes should be implemented: #/ (all - default), #/active and #/completed (#!/ is also allowed). When the route changes the todo list should be filtered on a model level and the selected class on the filter links should be toggled. Make sure the active filter is persisted on reload."
-    }, function (In, Out) { return Out.tab; }, function (Mem, tab) {
-        var _a = Mem.DOM.filters, all = _a.all.classList, active = _a.active.classList, completed = _a.completed.classList;
+        descr: "Routing is required for all frameworks. Use the built-in capabilities if supported, otherwise use the  [Flatiron Director](https://github.com/flatiron/director) routing library located in the `/assets` folder. The following routes should be implemented: `#/` (all - default), `#/active` and `#/completed` (`#!/` is also allowed). When the route changes the todo list should be filtered on a model level and the `selected` class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is `Active` and the item is checked, it should be hidden. Make sure the active filter is persisted on reload."
+    }, function (In, Out) { return Out.tab; }, function (_a, tab) {
+        var _b = _a.DOM.filters, all = _b.all.classList, active = _b.active.classList, completed = _b.completed.classList;
         switch (tab) {
             case Tab.ALL:
                 all.add("selected");
@@ -397,16 +543,18 @@ window.addEventListener("load", function () {
         .Effect({
         title: "Functionality: Routing",
         descr: "Routing is required for all frameworks. The following routes should be implemented: #/ (all - default), #/active and #/completed (#!/ is also allowed). When the route changes the todo list should be filtered on a model level and the selected class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is Active and the item is checked, it should be hidden."
-    }, function (In, Out) { return Out.filtered; }, function (Mem, _a) {
-        var show = _a.show, hide = _a.hide;
-        Array.prototype.slice.call(Mem.DOM.todoList.querySelectorAll("[data-id]")).forEach(function (el) {
-            var id = el.dataset["id"];
+    }, function (In, Out) { return Out.filtered; }, function (_a, _b) {
+        var todoList = _a.DOM.todoList;
+        var show = _b.show, hide = _b.hide;
+        Array.prototype.slice.call(todoList.querySelectorAll("[data-id]"))
+            .forEach(function (_a) {
+            var style = _a.style, id = _a.dataset["id"];
             switch (true) {
                 case show.indexOf(id) > -1:
-                    el.style.display = "inherit";
+                    style.display = "inherit";
                     break;
                 case hide.indexOf(id) > -1:
-                    el.style.display = "none";
+                    style.display = "none";
                     break;
             }
         });
