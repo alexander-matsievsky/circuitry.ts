@@ -23,6 +23,9 @@ function CreatingStreams() {
     Bacon.fromEvent(process.stdin, "readable", function () {
         alert("Bacon!");
     });
+    Bacon.fromEvent($("body"), "click").onValue(function () {
+        alert("Bacon!");
+    });
     // This would create a stream that outputs a single value "Bacon!" and ends after that. The use of setTimeout causes the value to be delayed by 1 second.
     Bacon.fromCallback(function (callback) {
         setTimeout(function () {
@@ -290,4 +293,53 @@ function JoinPatterns() {
         // Here's a simple gaming example:
         var scoreMultiplier = Bacon.constant(1), hitUfo = new Bacon.Bus(), hitMotherShip = new Bacon.Bus(), score = Bacon.update(0, [hitUfo, scoreMultiplier], function (score, _, multiplier) { return score + 100 * multiplier; }, [hitMotherShip], function (score, _) { return score + 2000; });
     }
+    {
+        // Join patterns as a "chemical machine". A quick way to get some intuition for join patterns is to understand them through an analogy in terms of atoms and molecules. A join pattern can here be regarded as a recipe for a chemical reaction. Lets say we have observables `oxygen`, `carbon` and `hydrogen`, where an event in these spawns an 'atom' of that type into a mixture. We can state reactions:
+        var oxygen = Bacon.interval(1e3, "O"), hydrogen = Bacon.interval(2e3, "H"), carbon = Bacon.interval(1.5e3, "C"), makeWater = function (oxygen, hydrogen1, hydrogen2) { return ("" + hydrogen1 + [hydrogen1, hydrogen2].length + oxygen); }, makeCarbonMonoxide = function (oxygen, carbon) { return ("" + carbon + oxygen); };
+        Bacon.when([oxygen, hydrogen, hydrogen], makeWater, [oxygen, carbon], makeCarbonMonoxide);
+    }
 }
+function JoinPatternsAndProperties() {
+    {
+        // Join patterns and properties
+        //Properties are not part of the synchronization pattern, but are instead just sampled. The following example take three input streams `$price`, `$quantity` and `$total`, e.g. coming from input fields, and defines mutally recursive behaviours in properties `price`, `quantity` and `total` such that
+        // -- updating price sets total to price * quantity;
+        // -- updating quantity sets total to price * quantity;
+        // -- updating total sets price to total / quantity.
+        var random = function (x) { return Math.round(x * Math.random()); }, id = function (x) { return x; };
+        var $quantity = Bacon.interval(1e3, 10).map(random), $price = Bacon.interval(2e3, 100).map(random), $total = Bacon.interval(1.5e3, 1000).map(random);
+        var quantity = $quantity.toProperty(1), price = Bacon.when([$price], id, [$total, quantity], function (x, y) { return x / y; }).toProperty(0), total = Bacon.when([$total], id, [$price, quantity], function (x, y) { return x * y; }, [price, $quantity], function (x, y) { return x * y; }).toProperty(0);
+    }
+}
+function JoinPatternsAndBaconBus() {
+    {
+        // Join patterns and `Bacon.Bus`
+        // The result functions of join patterns are allowed to push values onto a `Bus` that may in turn be in one of its patterns. For instance, an implementation of the dining philosophers problem can be written as follows:
+        // Availability of chopsticks are implemented using bus.
+        var chopsticks = [new Bacon.Bus(), new Bacon.Bus(), new Bacon.Bus()], 
+        // Hungry could be any type of observable, but we'll use bus here.
+        hungry = [new Bacon.Bus(), new Bacon.Bus(), new Bacon.Bus()], 
+        // A philosopher eats for one second, then makes the chopsticks available again by pushing values onto their bus.
+        eat = function (i) { return function () {
+            setTimeout(function () {
+                console.log("done!");
+                chopsticks[i].push({});
+                chopsticks[(i + 1) % 3].push({});
+            }, 1e3);
+            return "philosopher " + i + " eating";
+        }; }, 
+        // We use Bacon.when to make sure a hungry philosopher can eat only when both his chopsticks are available.
+        dining = Bacon.when([hungry[0], chopsticks[0], chopsticks[1]], eat(0), [hungry[1], chopsticks[1], chopsticks[2]], eat(1), [hungry[2], chopsticks[2], chopsticks[0]], eat(2)).log("dining");
+        // Make all chopsticks initially available.
+        chopsticks[0].push({});
+        chopsticks[1].push({});
+        chopsticks[2].push({});
+        // Make philosophers hungry in some way, in this case we just push to their bus.
+        for (var i = 0; i < 3; i++) {
+            hungry[0].push({});
+            hungry[1].push({});
+            hungry[2].push({});
+        }
+    }
+}
+//# sourceMappingURL=baconjs-tests.js.map
