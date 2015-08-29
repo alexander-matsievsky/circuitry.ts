@@ -1,12 +1,7 @@
 import {Circuit, EMPTY_MEM, Bacon} from "../../../../src/lib";
+import {v4 as uuidV4} from "node-uuid";
 
 type UUID = string;
-function uuid4():UUID {
-   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-      var r = Math.random() * 16 | 0, v = c == "x" ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-   });
-}
 
 interface Todo {
    id:UUID
@@ -110,7 +105,7 @@ window.addEventListener("load", () => {
    }, (Mem, In, Out) => {
       let POST = Bacon.mergeAll(
             In.POST.$.map(POST => ({
-               id: uuid4(),
+               id: uuidV4(),
                title: POST.title,
                completed: false
             })),
@@ -197,12 +192,12 @@ window.addEventListener("load", () => {
          .map<Todo[]>(JSON.parse)
          .toEventStream();
    })
-      .Effect<Todo[]>({
-      title: "Functionality: Persistence",
-      descr: `Your app should dynamically persist the todos to localStorage. If the framework has capabilities for persisting data (e.g. Backbone.sync), use that, otherwise vanilla localStorage. If possible, use the keys \`id\`, \`title\`, \`completed\` for each item. Make sure to use this format for the localStorage name: \`todos-[framework]\`. Editing mode should not be persisted.`
-   }, (In, Out) => In.store, ({label}, store) => {
-      localStorage.setItem(label, JSON.stringify(store));
-   });
+      .Effect({
+         title: "Functionality: Persistence",
+         descr: `Your app should dynamically persist the todos to localStorage. If the framework has capabilities for persisting data (e.g. Backbone.sync), use that, otherwise vanilla localStorage. If possible, use the keys \`id\`, \`title\`, \`completed\` for each item. Make sure to use this format for the localStorage name: \`todos-[framework]\`. Editing mode should not be persisted.`
+      }, (In, Out) => In.store, ({label}, store) => {
+         localStorage.setItem(label, JSON.stringify(store));
+      });
 
    let widget = todo.Block({
       title: "Todo widget",
@@ -404,57 +399,58 @@ window.addEventListener("load", () => {
             }
          });
    })
-      .Effect<Todo[]>({
-      title: "Functionality: No todos",
-      descr: "When there are no todos, \`#main\` and \`#footer\` should be hidden."
-   }, (In, Out) => In.GET, ({DOM:{main, footer}}, {length}) => {
-      if (length === 0) {
-         main.style.display = "none";
-         footer.style.display = "none";
-      } else {
-         main.style.display = "inherit";
-         footer.style.display = "inherit";
-      }
-   })
-      .Effect<Todo[]>({
-      title: "Functionality: Mark all as complete",
-      descr: `This checkbox toggles all the todos to the same state as itself. Make sure to clear the checked state after the the "Clear completed" button is clicked. The "Mark all as complete" checkbox should also be updated when single todo items are checked/unchecked. Eg. When all the todos are checked it should also get checked.`
-   }, (In, Out) => In.GET, ({DOM:{toggleAll}}, todos) => {
-      toggleAll.checked = todos.every(({completed}) => completed);
-      if (toggleAll.checked) {
-         toggleAll.setAttribute("checked", "checked");
-      } else {
-         toggleAll.removeAttribute("checked");
-      }
-   })
-      .Effect<Todo[]>({
-      title: "Functionality: Clear completed button",
-      descr: `Removes completed todos when clicked. Should be hidden when there are no completed todos.`
-   }, (In, Out) => In.GET, ({DOM:{clearCompleted:{style}}}, todos) => {
-      style.display = todos.every(({completed}) => !completed) ? "none" : "inherit";
-   })
-      .Effect<Todo[]>({
-      title: "Functionality: Counter",
-      descr: `Displays the number of active todos in a pluralized form. Make sure the number is wrapped by a \`<strong>\` tag. Also make sure to pluralize the \`item\` word correctly: \`0 items\`, \`1 item\`, \`2 items\`. Example: **2** items left`
-   }, (In, Out) => In.GET, ({DOM:{todoCount}}, todos) => {
-      let {length} = todos.filter(({completed}) => !completed),
-         s = length === 1 ? "" : "s";
-      todoCount.innerHTML = `<strong>${length}</strong> item${s} left`;
-   })
-      .Effect<Todo>({
-      title: "Functionality: New todo",
-      descr: `New todos are entered in the input at the top of the app. The input element should be focused when the page is loaded preferably using the \`autofocus\` input attribute. Pressing Enter creates the todo, appends it to the todo list and clears the input. Make sure to \`.trim()\` the input and then check that it's not empty before creating a new todo.`
-   }, (In, Out) => Out.POST, ({DOM:{newTodo}}, _) => {
-      newTodo.value = "";
-      newTodo.setAttribute("value", "");
-   })
-      .Effect<Todo>({
-      title: "Todo `POST`er",
-      descr: "Creates a view for a newly posted todo. Every later update goes through `PUT`ter."
-   }, (In, Out) => In.POST, ({DOM:{todoList}}, {id, title, completed}) => {
-      let $completed = completed ? `class="completed"` : "",
-         checked = completed ? `checked="checked"` : "";
-      todoList.innerHTML += `
+      .Effect({
+         title: "Functionality: No todos",
+         descr: "When there are no todos, \`#main\` and \`#footer\` should be hidden."
+      }, (In, Out) => In.GET, ({DOM:{main, footer}}, todos) => {
+         if (todos.length === 0) {
+            main.style.display = "none";
+            footer.style.display = "none";
+         } else {
+            main.style.display = "inherit";
+            footer.style.display = "inherit";
+         }
+      })
+      .Effect({
+         title: "Functionality: Mark all as complete",
+         descr: `This checkbox toggles all the todos to the same state as itself. Make sure to clear the checked state after the the "Clear completed" button is clicked. The "Mark all as complete" checkbox should also be updated when single todo items are checked/unchecked. Eg. When all the todos are checked it should also get checked.`
+      }, (In, Out) => In.GET, ({DOM:{toggleAll}}, todos) => {
+         toggleAll.checked = todos.every(({completed}) => completed);
+         if (toggleAll.checked) {
+            toggleAll.setAttribute("checked", "checked");
+         } else {
+            toggleAll.removeAttribute("checked");
+         }
+      })
+      .Effect({
+         title: "Functionality: Clear completed button",
+         descr: `Removes completed todos when clicked. Should be hidden when there are no completed todos.`
+      }, (In, Out) => In.GET, ({DOM:{clearCompleted:{style}}}, todos) => {
+         style.display = todos.every(({completed}) => !completed) ? "none" : "inherit";
+      })
+      .Effect({
+         title: "Functionality: Counter",
+         descr: `Displays the number of active todos in a pluralized form. Make sure the number is wrapped by a \`<strong>\` tag. Also make sure to pluralize the \`item\` word correctly: \`0 items\`, \`1 item\`, \`2 items\`. Example: **2** items left`
+      }, (In, Out) => In.GET, ({DOM:{todoCount}}, todos) => {
+         let {length} = todos.filter(({completed}) => !completed),
+            s = length === 1 ? "" : "s";
+         todoCount.innerHTML = `<strong>${length}</strong> item${s} left`;
+      })
+      .Effect({
+         title: "Functionality: New todo",
+         descr: `New todos are entered in the input at the top of the app. The input element should be focused when the page is loaded preferably using the \`autofocus\` input attribute. Pressing Enter creates the todo, appends it to the todo list and clears the input. Make sure to \`.trim()\` the input and then check that it's not empty before creating a new todo.`
+      }, (In, Out) => Out.POST, ({DOM:{newTodo}}, _) => {
+         newTodo.value = "";
+         newTodo.setAttribute("value", "");
+      })
+      .Effect({
+         title: "Todo `POST`er",
+         descr: "Creates a view for a newly posted todo. Every later update goes through `PUT`ter."
+      }, (In, Out) => In.POST, ({DOM:{todoList}}, todo) => {
+         let {id, title, completed} = todo,
+            $completed = completed ? `class="completed"` : "",
+            checked = completed ? `checked="checked"` : "";
+         todoList.innerHTML += `
 <li data-id="${id}" ${$completed}>
 	<div class="view">
 		<input class="toggle" type="checkbox" ${checked}>
@@ -463,101 +459,124 @@ window.addEventListener("load", () => {
 	</div>
 	<input class="edit" value="${title}">
 </li>`;
-   })
-      .Effect<{id:UUID; phaze:Editing}>({
-      title: "Functionality: Editing",
-      descr: `When editing mode is activated it will hide the other controls and bring forward an input that contains the todo title, which should be focused (\`.focus()\`). The edit should be saved on both blur and enter, and the \`editing\` class should be removed. Make sure to \`.trim()\` the input and then check that it's not empty. If it's empty the todo should instead be destroyed. If escape is pressed during the edit, the edit state should be left and any changes be discarded.`
-   }, (In, Out) => Out.editing, ({DOM:{todoList}}, {id, phaze}) => {
-      let li = <HTMLLIElement>todoList.querySelector(`[data-id="${id}"]`),
-         {classList} = li,
-         edit = (<HTMLInputElement>li.querySelector("input.edit"));
-      switch (phaze) {
-         case Editing.START:
-            classList.add("editing");
-            edit.focus();
-            break;
-         case Editing.STOP:
-            classList.remove("editing");
-            edit.value = edit.getAttribute("value");
-            break;
+      })
+      .Effect({
+         title: "Functionality: Editing",
+         descr: `When editing mode is activated it will hide the other controls and bring forward an input that contains the todo title, which should be focused (\`.focus()\`). The edit should be saved on both blur and enter, and the \`editing\` class should be removed. Make sure to \`.trim()\` the input and then check that it's not empty. If it's empty the todo should instead be destroyed. If escape is pressed during the edit, the edit state should be left and any changes be discarded.`
+      }, (In, Out) => Out.editing, ({DOM:{todoList}}, editingProcess) => {
+         let {id, phaze} = editingProcess,
+            li = <HTMLLIElement>todoList.querySelector(`[data-id="${id}"]`),
+            {classList} = li,
+            edit = (<HTMLInputElement>li.querySelector("input.edit"));
+         switch (phaze) {
+            case Editing.START:
+               classList.add("editing");
+               edit.focus();
+               break;
+            case Editing.STOP:
+               classList.remove("editing");
+               edit.value = edit.getAttribute("value");
+               break;
+         }
+      })
+      .Effect({
+         title: "Todo `PUT`ter",
+         descr: "Updates a view for every todo update after `POST`er."
+      }, (In, Out) => In.PUT, ({DOM:{todoList}}, todo) => {
+         let {id, title, completed} = todo,
+            li = <HTMLLIElement>todoList.querySelector(`[data-id="${id}"]`),
+            toggle = (<HTMLInputElement>li.querySelector(".toggle")),
+            edit = (<HTMLInputElement>li.querySelector(".edit"));
+         toggle.checked = completed;
+         if (completed) {
+            toggle.setAttribute("checked", "checked");
+         } else {
+            toggle.removeAttribute("checked")
+         }
+         (<HTMLLabelElement>li.querySelector("label")).textContent = title;
+         edit.value = title;
+         edit.setAttribute("value", title);
+         if (completed) {
+            li.classList.add("completed");
+         } else {
+            li.classList.remove("completed");
+         }
+      })
+      .Effect({
+         title: "Todo `DELETE`r",
+         descr: "Deletes a view for a deleted todo."
+      }, (In, Out) => In.DELETE, ({DOM:{todoList}}, todo) => {
+         let el = <HTMLElement>todoList.querySelector(`[data-id="${todo.id}"]`);
+         el.parentElement.removeChild(el);
+      })
+      .Effect({
+         title: "Functionality: Routing",
+         descr: `Routing is required for all frameworks. Use the built-in capabilities if supported, otherwise use the  [Flatiron Director](https://github.com/flatiron/director) routing library located in the \`/assets\` folder. The following routes should be implemented: \`#/\` (all - default), \`#/active\` and \`#/completed\` (\`#!/\` is also allowed). When the route changes the todo list should be filtered on a model level and the \`selected\` class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is \`Active\` and the item is checked, it should be hidden. Make sure the active filter is persisted on reload.`
+      }, (In, Out) => Out.tab, ({DOM:{filters:{all:{classList:all}, active:{classList:active}, completed:{classList:completed}}}}, tab) => {
+         switch (tab) {
+            case Tab.ALL:
+               all.add("selected");
+               active.remove("selected");
+               completed.remove("selected");
+               break;
+            case Tab.ACTIVE:
+               all.remove("selected");
+               active.add("selected");
+               completed.remove("selected");
+               break;
+            case Tab.COMPLETED:
+               all.remove("selected");
+               active.remove("selected");
+               completed.add("selected");
+         }
+      })
+      .Effect({
+         title: "Functionality: Routing",
+         descr: "Routing is required for all frameworks. The following routes should be implemented: #/ (all - default), #/active and #/completed (#!/ is also allowed). When the route changes the todo list should be filtered on a model level and the selected class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is Active and the item is checked, it should be hidden."
+      }, (In, Out) => Out.filtered, ({DOM:{todoList}}, filtered) => {
+         let {show, hide} = filtered;
+         Array.prototype.slice.call(todoList.querySelectorAll("[data-id]"))
+            .forEach(({style, dataset:{"id":id}}) => {
+               switch (true) {
+                  case show.indexOf(id) > -1:
+                     style.display = "inherit";
+                     break;
+                  case hide.indexOf(id) > -1:
+                     style.display = "none";
+                     break;
+               }
+            });
+      });
+
+   /*todo.Wire(resource.Out.GET, persistence.In.store);
+    todo.Wire(persistence.Out.restore, resource.In.restore);
+    todo.Wire(widget.Out.POST, resource.In.POST);
+    todo.Wire(widget.Out.PUT, resource.In.PUT);
+    todo.Wire(widget.Out.DELETE, resource.In.DELETE);
+    todo.Wire(resource.Out.GET, widget.In.GET);
+    todo.Wire(resource.Out.POST, widget.In.POST);
+    todo.Wire(resource.Out.PUT, widget.In.PUT);
+    todo.Wire(resource.Out.DELETE, widget.In.DELETE);*/
+
+   todo.Connect(resource, persistence)
+      .wire(Out => Out.GET, In => In.store);
+   todo.Connect(persistence, resource)
+      .wire(Out => Out.restore, In => In.restore);
+   todo.Connect(widget, resource)
+      .wire(Out => Out.POST, In => In.POST)
+      .wire(Out => Out.PUT, In => In.PUT)
+      .wire(Out => Out.DELETE, In => In.DELETE);
+   todo.Connect(resource, widget)
+      .wire(Out => Out.GET, In => In.GET)
+      .wire(Out => Out.POST, In => In.POST)
+      .wire(Out => Out.PUT, In => In.PUT)
+      .wire(Out => Out.DELETE, In => In.DELETE);
+
+   Object.defineProperties(window, {
+      blueprint: {
+         value: todo.blueprint
       }
-   })
-      .Effect<Todo>({
-      title: "Todo `PUT`ter",
-      descr: "Updates a view for every todo update after `POST`er."
-   }, (In, Out) => In.PUT, ({DOM:{todoList}}, {id, title, completed}) => {
-      let li = <HTMLLIElement>todoList.querySelector(`[data-id="${id}"]`),
-         toggle = (<HTMLInputElement>li.querySelector(".toggle")),
-         edit = (<HTMLInputElement>li.querySelector(".edit"));
-      toggle.checked = completed;
-      if (completed) {
-         toggle.setAttribute("checked", "checked");
-      } else {
-         toggle.removeAttribute("checked")
-      }
-      (<HTMLLabelElement>li.querySelector("label")).textContent = title;
-      edit.value = title;
-      edit.setAttribute("value", title);
-      if (completed) {
-         li.classList.add("completed");
-      } else {
-         li.classList.remove("completed");
-      }
-   })
-      .Effect<Todo>({
-      title: "Todo `DELETE`r",
-      descr: "Deletes a view for a deleted todo."
-   }, (In, Out) => In.DELETE, ({DOM:{todoList}}, {id}) => {
-      let el = <HTMLElement>todoList.querySelector(`[data-id="${id}"]`);
-      el.parentElement.removeChild(el);
-   })
-      .Effect<Tab>({
-      title: "Functionality: Routing",
-      descr: `Routing is required for all frameworks. Use the built-in capabilities if supported, otherwise use the  [Flatiron Director](https://github.com/flatiron/director) routing library located in the \`/assets\` folder. The following routes should be implemented: \`#/\` (all - default), \`#/active\` and \`#/completed\` (\`#!/\` is also allowed). When the route changes the todo list should be filtered on a model level and the \`selected\` class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is \`Active\` and the item is checked, it should be hidden. Make sure the active filter is persisted on reload.`
-   }, (In, Out) => Out.tab, ({DOM:{filters:{all:{classList:all}, active:{classList:active}, completed:{classList:completed}}}}, tab) => {
-      switch (tab) {
-         case Tab.ALL:
-            all.add("selected");
-            active.remove("selected");
-            completed.remove("selected");
-            break;
-         case Tab.ACTIVE:
-            all.remove("selected");
-            active.add("selected");
-            completed.remove("selected");
-            break;
-         case Tab.COMPLETED:
-            all.remove("selected");
-            active.remove("selected");
-            completed.add("selected");
-      }
-   })
-      .Effect<{show:UUID[]; hide:UUID[]}>({
-      title: "Functionality: Routing",
-      descr: "Routing is required for all frameworks. The following routes should be implemented: #/ (all - default), #/active and #/completed (#!/ is also allowed). When the route changes the todo list should be filtered on a model level and the selected class on the filter links should be toggled. When an item is updated while in a filtered state, it should be updated accordingly. E.g. if the filter is Active and the item is checked, it should be hidden."
-   }, (In, Out) => Out.filtered, ({DOM:{todoList}}, {show, hide}) => {
-      Array.prototype.slice.call(todoList.querySelectorAll("[data-id]"))
-         .forEach(({style, dataset:{"id":id}}) => {
-            switch (true) {
-               case show.indexOf(id) > -1:
-                  style.display = "inherit";
-                  break;
-               case hide.indexOf(id) > -1:
-                  style.display = "none";
-                  break;
-            }
-         });
    });
-
-   todo.Wire(resource.Out.GET, persistence.In.store);
-   todo.Wire(persistence.Out.restore, resource.In.restore);
-   todo.Wire(widget.Out.POST, resource.In.POST);
-   todo.Wire(widget.Out.PUT, resource.In.PUT);
-   todo.Wire(widget.Out.DELETE, resource.In.DELETE);
-   todo.Wire(resource.Out.GET, widget.In.GET);
-   todo.Wire(resource.Out.POST, widget.In.POST);
-   todo.Wire(resource.Out.PUT, widget.In.PUT);
-   todo.Wire(resource.Out.DELETE, widget.In.DELETE);
-
+   console.log(todo.blueprint);
    todo.setup();
 });

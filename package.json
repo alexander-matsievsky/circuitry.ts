@@ -27,6 +27,10 @@
   },
   "homepage": "https://github.com/alexander-matsievsky/circuitry.ts#readme",
   "dependencies": {
-    "baconjs": "^0.7.70"
+    "baconjs": "^0.7.70",
+    "node-uuid": "^1.4.3"
+  },
+  "devDependencies": {
+    "tsd": "^0.6.4"
   }
 }
